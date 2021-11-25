@@ -87,7 +87,7 @@ spike <- data|>
          "water_type" = Water_type,
          "volume" = Volume, "replicate" = Replicate)|>
   pivot_longer(cols = contains("rec"), names_to = "virus", values_to = "rec")|>
-  mutate(virus = str_remove_all(virus, "_Rec%"))|>
+  mutate(virus = str_remove_all(virus, "_Rec%| Rec%"))|>
   filter(!virus %in% c("AdV", "PMMoV", "CrAss"))|>
   filter(!method %in% c("Amicon", "Pellet", "Pellet_BE"))|>
   left_join(virus_char, by = "virus")|>
@@ -140,7 +140,7 @@ spike_ami_pel <- data|>
 anova(lm(log10(rec) ~ volume + method + enveloped + size_nm + shape + water_type, spike))
 #summary(lm(log10(rec) ~  volume  + enveloped  + method + size_nm + shape + water_type, spike))
 
-summary(lm(log10(rec) ~  volume + method + size_nm + enveloped, spike))
+summary(lm(log10(rec) ~  volume + method + size_nm + enveloped + water_type + shape, spike))
 
 ####################
 
@@ -164,7 +164,7 @@ all.t.p.v <- tibble(p.value = paste0("p-value ",
                     water_type = "WW"
 )
 
-#t.test p.value comp for individual virs comp
+#t.test p.value comp for individual virus comp
 viruses <- spike|>ungroup()|>count(virus)|>pull(virus)
 t.p.v <- tibble(virus = viruses, p.value = NA_character_, water_type = "WW")
 for (i in 1:length(viruses)) {
@@ -175,8 +175,41 @@ t.p.v[i,2] <- paste0("p-value ",
   
 }
 
+#t.test p.value comp for individual shapes 
+shapes <- spike|>ungroup()|>count(shape)|>pull(shape)
+t.p.v.s <- tibble(shape = shapes, p.value = NA_character_, water_type = "WW")
+for (i in 1:length(shapes)) {
+  
+  t.p.v.s[i,2] <- paste0("p-value ",
+                       pvalue_fun(t.test(rec ~ water_type, data = (spike|>filter(shape == shapes[i])) )[["p.value"]])
+  )
+  
+}
 
-(water_type <- spike|>
+#t.test p.value comp for individual envelopes
+envelopes <- spike|>ungroup()|>count(enveloped)|>pull(enveloped)
+t.p.v.e <- tibble(enveloped = envelopes, p.value = NA_character_, water_type = "WW")
+for (i in 1:length(envelopes)) {
+  
+  t.p.v.e[i,2] <- paste0("p-value ",
+                         pvalue_fun(t.test(rec ~ water_type, data = (spike|>filter(enveloped == envelopes[i])) )[["p.value"]])
+  )
+  
+}
+
+#t.test p.value comp for individual methods
+methods <- spike|>ungroup()|>count(method)|>pull(method)
+t.p.v.m <- tibble(method = methods, p.value = NA_character_, water_type = "WW")
+for (i in 1:length(methods)) {
+  
+  t.p.v.m[i,2] <- paste0("p-value ",
+                         pvalue_fun(t.test(rec ~ water_type, data = (spike|>filter(method == methods[i])) )[["p.value"]])
+  )
+  
+}
+
+
+water_type <- spike|>
     na.omit()|>
     mean_ci_summary(groups = "water_type", variable = "rec", log10 = TRUE)|>
     bind_cols(virus = "All viruses")|>
@@ -188,30 +221,82 @@ t.p.v[i,2] <- paste0("p-value ",
     geom_segment(aes(x = 1, xend = 2, y = 1, yend = 1))+
     geom_segment(aes(x = 1, xend = 1, y = 1, yend = .95))+
     geom_segment(aes(x = 2, xend = 2, y = 1, yend = .95))+
-    facet_wrap(~virus)+
   labs(y = "Mean log10 recovery",
        x = "Water type")+
-    theme(axis.title.x = element_blank()))
+    theme(axis.title.x = element_blank())
 
-(water_type_virus_2 <- spike|>
+water_type_shape <- spike|>
+  na.omit()|>
+  mean_ci_summary(groups = c("water_type", "shape"), variable = "rec", log10 = TRUE)|>
+  left_join(t.p.v.s, by = c("shape", "water_type"))|>
+  ggplot(aes(water_type, mean))+
+  geom_col()+
+  geom_errorbar(aes(ymin = mean - ci, ymax = mean + ci), width = 0.2)+
+  geom_text(aes(label = p.value, x = 1.5, y = 1.2), size = 3)+
+  geom_segment(aes(x = 1, xend = 2, y = 1.15, yend = 1.15))+
+  geom_segment(aes(x = 1, xend = 1, y = 1.15, yend = 1.1))+
+  geom_segment(aes(x = 2, xend = 2, y = 1.15, yend = 1.1))+
+  facet_grid(~shape, scales = "free_y")+
+  labs(y = "Mean log10 recovery",
+       x = "Water type")+
+  theme(axis.title.y = element_blank(),
+        axis.title.x = element_blank())
+
+water_type_envelope <- spike|>
+  na.omit()|>
+  mean_ci_summary(groups = c("water_type", "enveloped"), variable = "rec", log10 = TRUE)|>
+  left_join(t.p.v.e, by = c("enveloped", "water_type"))|>
+  mutate(enveloped = str_replace_all(enveloped, c("no" = "Not enveloped",
+                                                  "yes" = "Enveloped")))|>
+  ggplot(aes(water_type, mean))+
+  geom_col()+
+  geom_errorbar(aes(ymin = mean - ci, ymax = mean + ci), width = 0.2)+
+  geom_text(aes(label = p.value, x = 1.5, y = 1.2), size = 3)+
+  geom_segment(aes(x = 1, xend = 2, y = 1.15, yend = 1.15))+
+  geom_segment(aes(x = 1, xend = 1, y = 1.15, yend = 1.1))+
+  geom_segment(aes(x = 2, xend = 2, y = 1.15, yend = 1.1))+
+  facet_grid(~enveloped, scales = "free_y")+
+  labs(y = "Mean log10 recovery",
+       x = "Water type")+
+  theme(axis.title.y = element_blank(),
+        axis.title.x = element_blank())
+
+water_type_method <- spike|>
+  na.omit()|>
+  mean_ci_summary(groups = c("water_type", "method"), variable = "rec", log10 = TRUE)|>
+  left_join(t.p.v.m, by = c("method", "water_type"))|>
+  ggplot(aes(water_type, mean))+
+  geom_col()+
+  geom_errorbar(aes(ymin = mean - ci, ymax = mean + ci), width = 0.2)+
+  geom_text(aes(label = p.value, x = 1.5, y = 1.5), size = 3)+
+  geom_segment(aes(x = 1, xend = 2, y = 1.45, yend = 1.45))+
+  geom_segment(aes(x = 1, xend = 1, y = 1.45, yend = 1.4))+
+  geom_segment(aes(x = 2, xend = 2, y = 1.45, yend = 1.4))+
+  facet_grid(~method, scales = "free_y")+
+  labs(y = "Mean log10 recovery",
+       x = "Water type")+
+  theme(axis.title.y = element_blank(),
+        axis.title.x = element_blank())
+
+water_type_virus_2 <- spike|>
     filter(virus %in% c("Flu-A", "Flu-B"))|>
     na.omit()|>
     mean_ci_summary(groups = c("water_type", "virus"), variable = "rec", log10 = TRUE)|>
     left_join(t.p.v, by = c("virus", "water_type"))|>
-  ggplot(aes(water_type, mean))+
-  geom_col()+
-  geom_errorbar(aes(ymin = mean - ci, ymax = mean + ci), width = 0.2)+
+    ggplot(aes(water_type, mean))+
+    geom_col()+
+    geom_errorbar(aes(ymin = mean - ci, ymax = mean + ci), width = 0.2)+
     geom_text(aes(label = p.value, x = 1.5, y = 2.0), size = 3)+
     geom_segment(aes(x = 1, xend = 2, y = 1.9, yend = 1.9))+
     geom_segment(aes(x = 1, xend = 1, y = 1.9, yend = 1.85))+
     geom_segment(aes(x = 2, xend = 2, y = 1.9, yend = 1.85))+
-  facet_grid(~virus, scales = "free_y")+
-  labs(y = "Mean log10 recovery",
-       x = "Water type")+
+    facet_grid(~virus, scales = "free_y")+
+    labs(y = "Mean log10 recovery",
+         x = "Water type")+
     theme(axis.title.y = element_blank(),
-          axis.title.x = element_blank()))
+          axis.title.x = element_blank())
 
-(water_type_virus_7 <- spike|>
+water_type_virus_7 <- spike|>
     filter(!virus %in% c("Flu-A", "Flu-B"))|>
     na.omit()|>
     mean_ci_summary(groups = c("water_type", "virus"), variable = "rec", log10 = TRUE)|>
@@ -225,16 +310,15 @@ t.p.v[i,2] <- paste0("p-value ",
     geom_segment(aes(x = 2, xend = 2, y = 1.9, yend = 1.85))+
     facet_grid(~virus, scales = "free_y")+
     labs(y = "Mean log10 recovery",
-         x = "Water type"))
+         x = "Water type")
 
-(water_type + water_type_virus_2 + plot_layout(widths = c(1.2, 0.8))) /
-  water_type_virus_7 
+water_type /
+  (water_type_shape + water_type_envelope)
 #############################################
 
 #volume
 ######################
 spike|>
-  filter(!method %in% c("Amicon", "Pellet", "Pellet_BE"))|>
   mutate(volume = factor(as.character(volume), levels = c("15", "20", "37.5", "50", "150")))|>
   ggplot(aes(sample = log10(rec)))+
   geom_qq()+
@@ -278,7 +362,8 @@ volume_virus <- spike|>
 #method
 ######################
 spike_ami_pel|>
-  filter(virus != "MNV")|>
+  filter(volume == 15)|>
+  mutate(method = fct_reorder(.f = method, .x = rec, .fun = median))|>
   ggplot(aes(method, log10(rec)))+
   geom_boxplot()
 ######################
