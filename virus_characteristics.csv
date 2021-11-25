@@ -1,0 +1,7 @@
+,SARS,Flu-A,Flu-B,Phi6,NoVGII,MeV,RoV,MNV,CrAss,AdV,PMMoV
+host,Human,Human,Human,bacteria,Human,Human,Human,mice,bacteria,Human,plant
+enveloped,yes,yes,yes,yes,no,no,no,no,no,no,no
+genome,RNA,RNA,RNA,RNA,RNA,RNA,RNA,RNA,DNA,DNA,RNA
+size_nm,120,100,100,85,30,200,80,30,76,90,300
+shape,spherical,spherical,spherical,icosahedral,icosahedral,spherical,icosahedral,icosahedral,Head-tail,icosahedral,helical
+samples_spiked,yes,yes,yes,yes,yes,yes,yes,yes,no,no,no
