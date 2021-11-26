@@ -4,6 +4,9 @@ remove(list = ls())
 ################
 library(tidyverse)
 library(patchwork)
+
+
+theme_set(theme_grey()+theme(panel.background = element_rect(fill = "grey96")))
 ################
 
 #functions
@@ -93,22 +96,9 @@ spike <- data|>
          "volume" = Volume, "replicate" = Replicate)|>
   pivot_longer(cols = contains("rec"), names_to = "virus", values_to = "rec")|>
   mutate(virus = str_remove_all(virus, "_Rec%| Rec%"))|>
-  filter(!virus %in% c("AdV", "PMMoV", "CrAss"))|>
+  filter(!virus %in% c("AdV", "PMMoV", "CrAss"), spike == "S")|>
   filter(!method %in% c("Amicon", "Pellet", "Pellet_BE"))|>
   left_join(virus_char, by = "virus")|>
-  #mutate(spike = str_replace_all(spike, c("U" = "unspiked",
-  #                                        "S" = "spiked")))|>
-  #pivot_wider(names_from = "spike", values_from = "rec", names_prefix = "rec_")|>
-  #rowwise()|>
-  #mutate(rec = case_when(is.na(rec_spiked) | is.na(rec_unspiked) ~ rec_spiked,
-  #                              !is.na(rec_spiked) & !is.na(rec_unspiked) ~ rec_spiked - rec_unspiked))|>
-  #group_by(method, water_type, volume, virus)|>
-  #summarise(rec = mean(rec, na.rm = TRUE),
-  #          host = host[[1]],
-  #          enveloped = enveloped[[1]],
-  #          genome = genome[[1]],
-  #          size_nm = as.double(size_nm[[1]]),
-  #          shape = shape[[1]])|>
   mutate(rec = case_when(rec <= 0 ~ NA_real_,
                          TRUE ~ rec),
          size_nm = as.double(size_nm))
@@ -123,19 +113,6 @@ spike_ami_pel <- data|>
   mutate(virus = str_remove_all(virus, "_Rec%| Rec%"))|>
   filter(!virus %in% c("AdV", "PMMoV", "CrAss"), spike == "S")|>
   left_join(virus_char, by = "virus")|>
-  #mutate(spike = str_replace_all(spike, c("U" = "unspiked",
-  #                                        "S" = "spiked")))|>
-  #pivot_wider(names_from = "spike", values_from = "rec", names_prefix = "rec_")|>
-  #rowwise()|>
-  #mutate(rec = case_when(is.na(rec_spiked) | is.na(rec_unspiked) ~ rec_spiked,
-   #                      !is.na(rec_spiked) & !is.na(rec_unspiked) ~ rec_spiked - rec_unspiked))|>
-  #group_by(method, water_type, volume, virus)|>
-  #summarise(rec = mean(rec, na.rm = TRUE),
-  #          host = host[[1]],
-  #          enveloped = enveloped[[1]],
-  #          genome = genome[[1]],
-  #          size_nm = as.double(size_nm[[1]]),
-  #          shape = shape[[1]])|>
   mutate(rec = case_when(rec <= 0 ~ NA_real_,
                          TRUE ~ rec),
          size_nm = as.double(size_nm))
@@ -148,18 +125,12 @@ unspiked <- data|>
          "volume" = Volume, "replicate" = Replicate)|>
   pivot_longer(cols = contains("rec"), names_to = "virus", values_to = "rec")|>
   mutate(virus = str_remove_all(virus, "_Rec%| Rec%"))|>
-  filter(virus %in% c("AdV", "PMMoV", "CrAss"), spike == "U", water_type == "WW")|>
+  filter(virus %in% c("NoVGII", "AdV", "PMMoV", "CrAss", "N1"), spike == "U", water_type == "WW")|>
   filter(!method %in% c("Amicon", "Pellet", "Pellet_BE"))|>
   left_join(virus_char, by = "virus")|>
-  group_by(method, water_type, volume, virus)|>
-  summarise(rec = mean(rec, na.rm = TRUE),
-            host = host[[1]],
-            enveloped = enveloped[[1]],
-            genome = genome[[1]],
-            size_nm = as.double(size_nm[[1]]),
-            shape = shape[[1]])|>
   mutate(rec = case_when(rec <= 0 ~ NA_real_,
-                         TRUE ~ rec))
+                         TRUE ~ rec),
+         size_nm = as.double(size_nm))
   
 
 unspiked_ami_pel <- data|>
@@ -169,18 +140,12 @@ unspiked_ami_pel <- data|>
          "volume" = Volume, "replicate" = Replicate)|>
   pivot_longer(cols = contains("rec"), names_to = "virus", values_to = "rec")|>
   mutate(virus = str_remove_all(virus, "_Rec%| Rec%"))|>
-  filter(virus %in% c("AdV", "PMMoV", "CrAss"), spike == "U", water_type == "WW")|>
+  filter(virus %in% c("NoVGII", "AdV", "PMMoV", "CrAss", "N1"), spike == "U", water_type == "WW")|>
   #filter(!method %in% c("Amicon", "Pellet", "Pellet_BE"))|>
   left_join(virus_char, by = "virus")|>
-  group_by(method, water_type, volume, virus)|>
-  summarise(rec = mean(rec, na.rm = TRUE),
-            host = host[[1]],
-            enveloped = enveloped[[1]],
-            genome = genome[[1]],
-            size_nm = as.double(size_nm[[1]]),
-            shape = shape[[1]])|>
   mutate(rec = case_when(rec <= 0 ~ NA_real_,
-                         TRUE ~ rec))
+                         TRUE ~ rec),
+         size_nm = as.double(size_nm))
 #################
 
 #spiked
@@ -189,13 +154,13 @@ unspiked_ami_pel <- data|>
 anova(lm(log10(rec) ~ volume + method + size_nm + enveloped + shape + water_type, spike))
 #summary(lm(log10(rec) ~  volume  + enveloped  + method + size_nm + shape + water_type, spike))
 
-summary(lm(log10(rec) ~  volume + method + water_type + shape, spike))
+summary(lm(log10(rec) ~  volume + method + size_nm + water_type + shape, spike))
 
 ####################
 
 #volume
 ######################
-spike|>
+qq_volume <- spike|>
   mutate(volume = factor(as.character(volume), levels = c("15", "20", "37.5", "50", "150")))|>
   ggplot(aes(sample = log10(rec)))+
   geom_qq()+
@@ -247,7 +212,7 @@ volume_virus <- spike|>
 spike_method_data <- spike_ami_pel|>
   filter(volume == 15)
 
-spike_method_data|>
+qq_method <- spike_method_data|>
   ggplot(aes(sample = log10(rec)))+
   geom_qq()+
   geom_qq_line()+
@@ -273,7 +238,7 @@ method <- spike_method_data|>
 
 #shape
 ##########################
-spike|>
+qq_shape <- spike|>
   ggplot(aes(sample = log10(rec)))+
   geom_qq()+
   geom_qq_line()+
@@ -294,7 +259,7 @@ shape <- spike|>
   ggplot(aes(shape, mean))+
   geom_col()+
   geom_errorbar(aes(ymin = mean - ci, ymax = mean + ci), width = 0.2)+
-  geom_text(aes(label = p.value, x = 1.5, y = max(mean + ci) + max(ci * 1.2)), size = 3)+
+  geom_text(aes(label = p.value, x = 1.5, y = max(mean + ci) + max(ci * 1.6)), size = 3)+
   geom_segment(aes(x = 1, xend = 2, y = max(mean + ci) + max(ci) * 0.7, yend = max(mean + ci) + (max(ci) * 0.7)))+
   geom_segment(aes(x = 1, xend = 1, y = max(mean + ci) + max(ci) * 0.7, yend = max(mean + ci) + (max(ci) * 0.4)))+
   geom_segment(aes(x = 2, xend = 2, y = max(mean + ci) + max(ci) * 0.7, yend = max(mean + ci) + (max(ci) * 0.4)))+
@@ -313,13 +278,7 @@ spike_method_data|>
 
 #water type
 #############################################
-spike|>
-  ggplot(aes(sample = log10(rec)))+
-  geom_qq()+
-  geom_qq_line()+
-  facet_wrap(~virus + water_type, scales = "free_y")
-
-spike|>
+qq_water_type <- spike|>
   ggplot(aes(sample = log10(rec)))+
   geom_qq()+
   geom_qq_line()+
@@ -487,8 +446,6 @@ water_type /
   (water_type_shape + water_type_envelope)
 #############################################
 
-theme_set(theme_grey()+theme(panel.background = element_rect(fill = "grey96")))
-
 (volume + method + theme(axis.title.y = element_blank())) / 
   (shape + water_type + theme(axis.title.y = element_blank()))
 
@@ -497,7 +454,7 @@ theme_set(theme_grey()+theme(panel.background = element_rect(fill = "grey96")))
 
 anova(lm(log10(rec) ~ as.character(size_nm), data = spike))
 
-spike|>
+qq_size <- spike|>
   ggplot(aes(sample = log10(rec)))+
   geom_qq()+
   geom_qq_line()+
@@ -524,7 +481,7 @@ summary(lm(log10(rec) ~ size_nm, spike))
 
 #envelope
 #############################
-spike|>
+qq_envelope <- spike|>
   ggplot(aes(sample = log10(rec)))+
   geom_qq()+
   geom_qq_line()+
@@ -541,24 +498,64 @@ enveloped <- spike|>
 
 genome_size + enveloped
 
+#pellet
+############################
+pellet <- spike_ami_pel|>
+ filter(method %in% c("PEG", "BE-PEG", "Pellet", "Pellet_BE"))|>
+  mutate(BE = str_detect(method, "BE"),
+         BE = case_when(BE == TRUE ~ "Beef extract",
+                        BE == FALSE ~ "No beef extract"))
+  
+pellet|>
+  ggplot(aes(sample =log10(rec)))+
+  geom_qq()+
+  geom_qq_line()+
+  facet_wrap(~method, scales = "free")
 
+facets <- pellet|>ungroup()|>count(BE)|>pull(BE)
+t.test.pellet <- tibble(BE = facets, stat = NA_character_, row = 2)
+for (i in 1:length(facets)) {
+  
+  t.test.pellet[i,2] <- stat_paste_fun(t.test(log10(rec) ~ method, data = (pellet|>filter(BE == facets[i])) ))
+  
+}
+
+pellet_fig <- pellet|>
+  mean_ci_summary(groups = c("method", "BE"), variable = "rec", log10 = TRUE)|>
+  mutate(method = str_replace_all(method, c("Pellet_BE" = "Pellet")))|>
+  group_by(BE)|>
+  mutate(row = row_number(),
+         max = max(mean + ci) * (row - (max(row)-1)),
+         max = case_when(max == 0 ~ NA_real_,
+                         TRUE ~ max))|>
+  left_join(t.test.pellet, by = c("BE", "row"))|>
+  ggplot(aes(method, mean))+
+  geom_boxplot()+
+  geom_errorbar(aes(ymin = mean - ci, ymax = mean + ci), width = 0.2)+
+  facet_wrap(~BE, scales = "free")+
+  geom_text(aes(label = stat, x = 1.5, y = max + ci * 1.2), size = 3)+
+  geom_segment(aes(x = 1, xend = 2, y = max + (ci * 0.7), yend = max + (ci * 0.7)))+
+  geom_segment(aes(x = 1, xend = 1, y = max + ci * 0.7, yend = max + (ci * 0.4)))+
+  geom_segment(aes(x = 2, xend = 2, y = max + ci * 0.7, yend = max + (ci * 0.4)))+
+  labs(y = "log10 recovery",
+       x = "Method")
+
+###########################
+
+pellet_fig
 
 #unspiked
-unspiked|>
-  ungroup()|>
-  count(shape)
 #overview stats
 ####################
-anova(lm(log10(rec) ~ volume  + method + virus, unspiked))
+anova(lm(log10(rec) ~ volume  + method, unspiked))
 #summary(lm(log10(rec) ~  volume  + enveloped  + method + size_nm + shape + water_type, unspiked))
 
-summary(lm(log10(rec) ~  volume + method + shape, unspiked))
-
+summary(lm(log10(rec) ~  volume + method, unspiked))
 ####################
 
 #volume
 ######################
-unspiked|>
+qq_Uvolume <- unspiked|>
   mutate(volume = factor(as.character(volume), levels = c("15", "20", "37.5", "50", "150")))|>
   ggplot(aes(sample = log10(rec)))+
   geom_qq()+
@@ -568,21 +565,19 @@ unspiked|>
 
 
 kruskal_volume_lbl <- tibble(label = stat_paste_fun(kruskal.test(log10(rec) ~ volume, unspiked)),
-                           volume = 37.5,
-                           virus = "AdV",
-                           method = "AS")
+                           row = 1)
 
-volume <- unspiked|>
-  left_join(kruskal_volume_lbl, by = c("volume", "virus", "method"))|>
+Uvolume <- unspiked|>
+  mutate(row = row_number())|>
+  left_join(kruskal_volume_lbl, by = c("row"))|>
   mutate(volume = fct_reorder(as.character(volume), volume))|>
   ggplot(aes(volume, log10(rec)))+
   geom_boxplot()+
-  geom_text(aes(y = 1.1, label = label), size = 3)+
+  geom_text(aes(x = 2, y = 1.5, label = label), size = 3)+
   labs(y = "log10 recovery",
        x = "Volume (ml)")
 
 volume_method <- unspiked|>
-  left_join(kruskal_volume_lbl, by = c("volume", "virus", "method"))|>
   mutate(volume = fct_reorder(as.character(volume), volume))|>
   ggplot(aes(volume, log10(rec)))+
   geom_boxplot()+
@@ -590,8 +585,7 @@ volume_method <- unspiked|>
   labs(y = "log10 recovery",
        x = "Volume (ml)")
 
-volume_virus <- unspiked|>
-  left_join(kruskal_volume_lbl, by = c("volume", "virus", "method"))|>
+Uvolume_virus <- unspiked|>
   mutate(volume = fct_reorder(as.character(volume), volume))|>
   ggplot(aes(volume, log10(rec)))+
   geom_boxplot()+
@@ -599,7 +593,7 @@ volume_virus <- unspiked|>
   labs(y = "log10 recovery",
        x = "Volume (ml)")
 
-(volume + volume_virus)
+(Uvolume / Uvolume_virus)
 ###############################
 
 #method
@@ -607,7 +601,7 @@ volume_virus <- unspiked|>
 unspiked_method_data <- unspiked_ami_pel|>
   filter(volume == 15)
 
-unspiked_method_data|>
+qq_Umethod <- unspiked_method_data|>
   ggplot(aes(sample = log10(rec)))+
   geom_qq()+
   geom_qq_line()+
@@ -616,122 +610,73 @@ unspiked_method_data|>
 stat <- kruskal.test(log10(rec) ~ method, unspiked_method_data)
 pairwise.wilcox.test(log10(unspiked_method_data$rec), unspiked_method_data$method, paired = TRUE)
 
-kruskal_lbl <- tibble(label = stat_paste_fun(stat), method = "AS")
+kruskal_lbl <- tibble(label = stat_paste_fun(stat), row = 1)
 
-method <- unspiked_method_data|>
+Umethod <- unspiked_method_data|>
+  mutate(row = row_number())|>
+  left_join(kruskal_lbl, by = "row")|>
   ungroup()|>
-  left_join(kruskal_lbl, by = "method")|>
-  mutate(method = fct_reorder(.f = method, .x = log10(rec), .fun = median))|>
+  mutate(method = fct_reorder(.f = method, .x = log10(rec), .fun = function(.x){median(.x, na.rm = TRUE)}))|>
   ggplot(aes(method, log10(rec)))+
   geom_boxplot()+
-  geom_text(aes(label = label, y = 1.4, x = 2.5), size = 3)+
+  geom_text(aes(label = label, y = 1.5, x = 2.5), size = 3)+
   labs(y = "log10 recovery",
        x = "Method")
 
-unspiked_method_data|>
+Umethod_virus <- unspiked_method_data|>
   ungroup()|>
-  left_join(kruskal_lbl, by = "method")|>
-  mutate(method = fct_reorder(.f = method, .x = log10(rec), .fun = median))|>
+  mutate(method = fct_reorder(.f = method, .x = log10(rec), .fun = function(.x){median(.x, na.rm = TRUE)}))|>
   ggplot(aes(method, log10(rec)))+
-  geom_point()+
-  facet_wrap(~ virus, scales = "free_y")+
-  #geom_text(aes(label = label, y = 1.4, x = 2.5), size = 3)+
+  geom_boxplot()+
+  facet_wrap(~virus, scales = "free_y")+
   labs(y = "log10 recovery",
        x = "Method")
 
+Umethod / Umethod_virus
 ######################
 
-#shape
-##########################
-unspiked|>
-  ggplot(aes(sample = log10(rec)))+
-  geom_qq()+
-  geom_qq_line()+
-  facet_wrap(~shape, scales = "free_y")
+Uvolume / Umethod 
 
-shape.t.p.v <- tibble(p.value = paste0(
-  #"p-value ",
-  #pvalue_fun(t.test(log10(rec) ~ shape, data = unspiked)[["p.value"]])),
-  stat_paste_fun(t.test(log10(rec) ~ shape, data = unspiked))),
-  shape = "spherical"
-)
+Uvolume + (Uvolume_virus + theme(axis.text.x = element_text(angle = 90), axis.title = element_blank())) +
+  Umethod + (Umethod_virus + theme(axis.text.x = element_text(angle = 90), axis.title = element_blank())) +
+  plot_layout(ncol = 2, nrow = 2, widths = c(1.2, 0.8, 1.2, 0.8))
 
-stat_paste_fun(t.test(log10(rec) ~ shape, data = unspiked))
 
-shape <- unspiked|>
-  mean_ci_summary(c("shape"), "rec", TRUE)|>
-  left_join(shape.t.p.v, by = "shape")|>
-  ggplot(aes(shape, mean))+
-  geom_col()+
-  geom_errorbar(aes(ymin = mean - ci, ymax = mean + ci), width = 0.2)+
-  geom_text(aes(label = p.value, x = 1.5, y = max(mean + ci) + max(ci * 1.2)), size = 3)+
-  geom_segment(aes(x = 1, xend = 2, y = max(mean + ci) + max(ci) * 0.7, yend = max(mean + ci) + (max(ci) * 0.7)))+
-  geom_segment(aes(x = 1, xend = 1, y = max(mean + ci) + max(ci) * 0.7, yend = max(mean + ci) + (max(ci) * 0.4)))+
-  geom_segment(aes(x = 2, xend = 2, y = max(mean + ci) + max(ci) * 0.7, yend = max(mean + ci) + (max(ci) * 0.4)))+
-  labs(y = "log10 recovery",
-       x = "Shape")
+#report
+###########################
 
-unspiked_method_data|>
-  mean_ci_summary(c("shape", "method"), "rec", TRUE)|>
-  left_join(shape.t.p.v, by = "shape")|>
-  ggplot(aes(shape, mean))+
-  geom_col()+
-  geom_errorbar(aes(ymin = mean - ci, ymax = mean + ci), width = 0.2)+
-  facet_wrap(~method, scales = "free_y")
+#figures
+#1 spiked
+(volume + method + theme(axis.title.y = element_blank())) / 
+  (shape + water_type + theme(axis.title.y = element_blank()))
+#-lower volume = better (low inhibitors) #-DW better than WW (low inhibitors)
+#-amicon method best followed by BE-PEG
+#-spherical viruses have lower recovery
 
-#########################
 
-theme_set(theme_grey()+theme(panel.background = element_rect(fill = "grey96")))
+#2 unspiked
+Uvolume + (Uvolume_virus + theme(axis.text.x = element_text(angle = 90), axis.title = element_blank())) +
+  Umethod + (Umethod_virus + theme(axis.text.x = element_text(angle = 90), axis.title = element_blank())) +
+  plot_layout(ncol = 2, nrow = 2, widths = c(1.2, 0.8, 1.2, 0.8))
+#
 
-volume / method 
 
-#size
+#3 pellet
+pellet_fig
+#-removal of the pellet will improve recovery
+
 #############################
 
-unspiked|>
-  ggplot(aes(sample = log10(rec)))+
-  geom_qq()+
-  geom_qq_line()+
-  facet_wrap(~size_nm, scales = "free_y")
 
-
-unspiked|>
-  mutate(size = as.character(size_nm))|>
-  mean_ci_summary(groups = c("size", "size_nm"), variable = "rec", log10 = TRUE)|>
-  ungroup()|>
-  mutate(size = fct_reorder(.f = size, .x = size_nm, .fun = min))|>
-  ggplot(aes(size, mean))+
-  geom_col()+
-  geom_errorbar(aes(ymin = mean - ci, ymax = mean+ci), width = 0.2)
-
-
-unspiked|>
-  ungroup()|>
-  mutate(size = fct_reorder(.f = as.character(size_nm), .x = size_nm, .fun = min))|>
-  ggplot(aes(size, log10(rec)))+
-  geom_boxplot()
-
-genome_size <- unspiked|>
-  ggplot(aes(size_nm, log10(rec)))+
-  geom_jitter()
-
-summary(lm(log10(rec) ~ size_nm, unspiked))
-
-##############################
-
-#envelope
-#############################
-unspiked|>
-  ggplot(aes(sample = log10(rec)))+
-  geom_qq()+
-  geom_qq_line()+
-  facet_wrap(~enveloped, scales = "free_y")
-
-
-enveloped <- unspiked|>
-  ggplot(aes(enveloped, rec))+
-  geom_boxplot()
-
-##############################
-
+#supplimentary
+########################
 genome_size + enveloped
+
+(qq_volume + qq_method)/
+  (qq_shape + qq_water_type)
+
+qq_Uvolume / 
+  qq_Umethod
+
+qq_size + qq_envelope
+######################
