@@ -244,14 +244,10 @@ qq_shape <- spike|>
   geom_qq_line()+
   facet_wrap(~shape, scales = "free_y")
 
-shape.t.p.v <- tibble(p.value = paste0(
-                                     #"p-value ",
-                                     #pvalue_fun(t.test(log10(rec) ~ shape, data = spike)[["p.value"]])),
-                                     stat_paste_fun(t.test(log10(rec) ~ shape, data = spike))),
+shape.t.p.v <- tibble(p.value = stat_paste_fun(t.test(log10(rec) ~ shape, data = spike)),
                     shape = "spherical"
 )
 
-stat_paste_fun(t.test(log10(rec) ~ shape, data = spike))
 
 shape <- spike|>
   mean_ci_summary(c("shape"), "rec", TRUE)|>

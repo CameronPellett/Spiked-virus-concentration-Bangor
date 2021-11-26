@@ -1,0 +1,524 @@
+---
+title: "Spiked-virus-data-report"
+author: "Cameron Pellett"
+date: "26/11/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, fig.height = 9, fig.width = 9)
+```
+
+```{r packages}
+library(tidyverse)
+library(patchwork)
+library(broom)
+
+theme_set(theme_grey()+theme(panel.background = element_rect(fill = "grey96")))
+```
+
+```{r functions}
+
+#summarises mean, sd, se, ci for bar charts
+mean_ci_summary <- function(data, groups, variable, log10 = FALSE){
+  
+  data <- data|>ungroup()
+  
+  for (i in 1:length(groups)) {
+    
+    data <- data|>
+      group_by(.data[[ groups[i] ]], .add = TRUE)
+    
+  }
+  
+  if(log10 == TRUE){
+    
+    data|>
+      summarise(mean = mean(log10(.data[[variable]]), na.rm = TRUE),
+                sd = sd(log10(.data[[variable]]), na.rm = TRUE),
+                n = n())|>
+      mutate(se = sd / sqrt(n),
+             ci = se * qt(1 - 0.05 / 2, n-1))
+    
+  }else {
+    
+    data|>
+      summarise(mean = mean(.data[[variable]], na.rm = TRUE),
+                sd = sd(.data[[variable]], na.rm = TRUE),
+                n = n())|>
+      mutate(se = sd / sqrt(n),
+             ci = se * qt(1 - 0.05 / 2, n-1))
+    
+  }
+}
+
+pvalue_fun <- function(p.value){
+  if(is.na(p.value)){
+    NA_character_
+  }else if(p.value > 0.05){
+    "> 0.05"
+  }else if(p.value < 0.05 & p.value > 0.01){
+    "< 0.05"
+  }else if(p.value < 0.01 & p.value > 0.001){
+    "< 0.01"
+  }else if(p.value < 0.001){
+    "< 0.001"
+  }else {
+    "something went wrong"
+  }
+}
+
+stat_paste_fun <- function(stat){
+  paste0(str_remove_all(stat[["method"]][[1]], "\n\t"), ": ", 
+         str_remove_all(names(stat[["statistic"]]), "Kruskal-Wallis "), " = ",
+         round(stat[["statistic"]][[1]],1), ", ",
+         if(length(stat[["parameter"]]) == 0)
+         {""
+         }else if(is.na(stat[["parameter"]])){
+           ""
+         }else if(length(stat[["parameter"]]) > 0){
+           paste0("df = ", round(stat[["parameter"]], 0), ", ")
+         } ,
+         "p-value ",  pvalue_fun(stat[["p.value"]]))
+}
+
+paste_anova_fun <- function(anova){
+  paste0("ANOVA: ", "F value = ", round((anova$`F value`)[1], 2), ", ", "p-value ", pvalue_fun(anova$`Pr(>F)`[1]))
+}
+
+```
+
+```{r Import and clean}
+data <- read_csv("Spiking_data.csv")
+
+virus_char <- read_csv("virus_characteristics.csv")|>
+  pivot_longer(2:12, names_to = "virus", values_to = "value")|>
+  pivot_wider(names_from = "X1", values_from = "value")|>
+  mutate(virus = str_replace_all(virus, c("SARS" = "N1")))
+  
+spike <- data|>
+  select(-Sample_code)|>
+  rename("method" = Method, "spike" = Spike,
+         "water_type" = Water_type,
+         "volume" = Volume, "replicate" = Replicate)|>
+  pivot_longer(cols = contains("rec"), names_to = "virus", values_to = "rec")|>
+  mutate(virus = str_remove_all(virus, "_Rec%| Rec%"))|>
+  filter(!virus %in% c("AdV", "PMMoV", "CrAss"), spike == "S")|>
+  filter(!method %in% c("Amicon", "Pellet", "Pellet_BE"))|>
+  left_join(virus_char, by = "virus")|>
+  mutate(rec = case_when(rec <= 0 ~ NA_real_,
+                         TRUE ~ rec),
+         size_nm = as.double(size_nm))
+
+
+spike_ami_pel <- data|>
+  select(-Sample_code)|>
+  rename("method" = Method, "spike" = Spike,
+         "water_type" = Water_type,
+         "volume" = Volume, "replicate" = Replicate)|>
+  pivot_longer(cols = contains("rec"), names_to = "virus", values_to = "rec")|>
+  mutate(virus = str_remove_all(virus, "_Rec%| Rec%"))|>
+  filter(!virus %in% c("AdV", "PMMoV", "CrAss"), spike == "S")|>
+  left_join(virus_char, by = "virus")|>
+  mutate(rec = case_when(rec <= 0 ~ NA_real_,
+                         TRUE ~ rec),
+         size_nm = as.double(size_nm))
+
+
+unspiked <- data|>
+  select(-Sample_code)|>
+  rename("method" = Method, "spike" = Spike,
+         "water_type" = Water_type,
+         "volume" = Volume, "replicate" = Replicate)|>
+  pivot_longer(cols = contains("rec"), names_to = "virus", values_to = "rec")|>
+  mutate(virus = str_remove_all(virus, "_Rec%| Rec%"))|>
+  filter(virus %in% c("NoVGII", "AdV", "PMMoV", "CrAss", "N1"), spike == "U", water_type == "WW")|>
+  filter(!method %in% c("Amicon", "Pellet", "Pellet_BE"))|>
+  left_join(virus_char, by = "virus")|>
+  mutate(rec = case_when(rec <= 0 ~ NA_real_,
+                         TRUE ~ rec),
+         size_nm = as.double(size_nm))
+  
+
+unspiked_ami_pel <- data|>
+  select(-Sample_code)|>
+  rename("method" = Method, "spike" = Spike,
+         "water_type" = Water_type,
+         "volume" = Volume, "replicate" = Replicate)|>
+  pivot_longer(cols = contains("rec"), names_to = "virus", values_to = "rec")|>
+  mutate(virus = str_remove_all(virus, "_Rec%| Rec%"))|>
+  filter(virus %in% c("NoVGII", "AdV", "PMMoV", "CrAss", "N1"), spike == "U", water_type == "WW")|>
+  #filter(!method %in% c("Amicon", "Pellet", "Pellet_BE"))|>
+  left_join(virus_char, by = "virus")|>
+  mutate(rec = case_when(rec <= 0 ~ NA_real_,
+                         TRUE ~ rec),
+         size_nm = as.double(size_nm))
+
+```
+
+## Results
+
+### Spiked samples
+
+#### overview ANOVA and multiple linear model 
+
+<br>
+
+Table 1: Analysis of variance of recovery of spiked virus.
+```{r overview anova }
+spiked_anova <- anova(lm(log10(rec) ~ volume + method + size_nm + enveloped + shape + water_type, spike))
+
+spiked_anova_table <- tibble(Variable = rownames(spiked_anova))|>
+  bind_cols(as_tibble(spiked_anova))|>
+  rename("P value" = `Pr(>F)`)|>
+  rowwise()|>
+  mutate(`P value` = pvalue_fun(`P value`),
+         across(2:5, ~round(.x, 2)),
+         Variable = str_replace_all(Variable, c("volume" = "Volume",
+                                        "method" = "Method",
+                                        "size_nm" = "Virus genome size (nm)",
+                                        "water_type" = "Water type",
+                                        "shape" = "Virus shape")))
+
+
+knitr::kable(spiked_anova_table)
+
+
+```
+
+Table 2: Multiple linear model predicting recovery of spiked virus.
+```{r overview multiple linear model}
+
+lm_table <- tidy(lm(log10(rec) ~  volume + method + size_nm + water_type + shape, spike))|>
+  mutate(term = str_replace_all(term, c("[(]Intercept[)]" = "Intercept",
+                                        "volume" = "Volume",
+                                        "methodBE-PEG" = "Method: BE-PEG",
+                                        "methodIP" = "Method: IP",
+                                        "methodPEG" = "Method: PEG",
+                                        "size_nm" = "Virus genome size (nm)",
+                                        "water_typeWW" = "Water type: WW",
+                                        "shapespherical" = "Virus shape: spherical")),
+         across(2:4, ~round(.x, 2)))|>
+  rowwise()|>
+  mutate(p.value = pvalue_fun(p.value))
+
+knitr::kable(lm_table, col.names = c("Variables", "Estimate", "Standard error", "T value", "P value"))
+
+
+```
+
+
+<br>
+
+### Figure
+
+<br>
+
+```{r volume}
+qq_volume <- spike|>
+  mutate(volume = factor(as.character(volume), levels = c("15", "20", "37.5", "50", "150")))|>
+  ggplot(aes(sample = log10(rec)))+
+  geom_qq()+
+  geom_qq_line()+
+  facet_wrap(~volume, scales = "free")
+
+
+anova_volume_lbl <- tibble(label = paste_anova_fun(anova(lm(log10(rec) ~ volume, spike))),
+       volume = 37.5)
+
+volume <- spike|>
+  mean_ci_summary(groups = c("volume"), variable = "rec", log10 = TRUE)|>
+  left_join(anova_volume_lbl, by = "volume")|>
+  mutate(volume = fct_reorder(as.character(volume), volume))|>
+  ggplot(aes(volume, mean))+
+  geom_col()+
+  geom_errorbar(aes(ymin = mean - ci, ymax = mean + ci), width = 0.2)+
+  geom_text(aes(y = 1.1, label = label), size = 3)+
+  labs(y = "log10 recovery",
+       x = "Volume (ml)")
+```
+
+```{r method}
+spike_method_data <- spike_ami_pel|>
+  filter(volume == 15)
+
+qq_method <- spike_method_data|>
+  ggplot(aes(sample = log10(rec)))+
+  geom_qq()+
+  geom_qq_line()+
+  facet_wrap(~method, scales = "free_y")
+
+stat <- anova(lm(log10(rec) ~ method, spike_method_data))
+pairwise.t.test(log10(spike_method_data$rec), spike_method_data$method, paired = TRUE)
+
+anova_lbl <- tibble(label = paste_anova_fun(stat), method = "AS")
+
+method <- spike_method_data|>
+  mean_ci_summary(c("method"), "rec", TRUE)|>
+  left_join(anova_lbl, by = "method")|>
+  mutate(method = fct_reorder(.f = method, .x = mean, .fun = median))|>
+  ggplot(aes(method, mean))+
+  geom_col()+
+  geom_errorbar(aes(ymin = mean - ci, ymax = mean + ci), width = 0.2)+
+  geom_text(aes(label = label, y = 1.75), size = 3)+
+  labs(y = "log10 recovery",
+       x = "Method")
+```
+
+```{r shape}
+qq_shape <- spike|>
+  ggplot(aes(sample = log10(rec)))+
+  geom_qq()+
+  geom_qq_line()+
+  facet_wrap(~shape, scales = "free_y")
+
+shape.t.p.v <- tibble(p.value = stat_paste_fun(t.test(log10(rec) ~ shape, data = spike)),
+                    shape = "spherical"
+)
+
+
+shape <- spike|>
+  mean_ci_summary(c("shape"), "rec", TRUE)|>
+  left_join(shape.t.p.v, by = "shape")|>
+  ggplot(aes(shape, mean))+
+  geom_col()+
+  geom_errorbar(aes(ymin = mean - ci, ymax = mean + ci), width = 0.2)+
+  geom_text(aes(label = p.value, x = 1.5, y = max(mean + ci) + max(ci * 1.6)), size = 3)+
+  geom_segment(aes(x = 1, xend = 2, y = max(mean + ci) + max(ci) * 0.7, yend = max(mean + ci) + (max(ci) * 0.7)))+
+  geom_segment(aes(x = 1, xend = 1, y = max(mean + ci) + max(ci) * 0.7, yend = max(mean + ci) + (max(ci) * 0.4)))+
+  geom_segment(aes(x = 2, xend = 2, y = max(mean + ci) + max(ci) * 0.7, yend = max(mean + ci) + (max(ci) * 0.4)))+
+  labs(y = "log10 recovery",
+       x = "Shape")
+```
+
+```{r water type}
+qq_water_type <- spike|>
+  ggplot(aes(sample = log10(rec)))+
+  geom_qq()+
+  geom_qq_line()+
+  facet_wrap(~water_type, scales = "free_y")
+
+
+
+#t.test p.value for all virus comp
+all.t.p.v <- tibble(p.value = paste0(
+                                #"p-value ",
+                                #pvalue_fun(t.test(log10(rec) ~ water_type, data = spike)[["p.value"]])),
+                                stat_paste_fun(t.test(log10(rec) ~ water_type, data = spike))),
+                    water_type = "WW"
+)
+
+water_type <- spike|>
+    na.omit()|>
+    mean_ci_summary(groups = "water_type", variable = "rec", log10 = TRUE)|>
+    bind_cols(virus = "All viruses")|>
+    left_join(all.t.p.v, by = "water_type")|>
+  ggplot(aes(water_type, mean))+
+  geom_col()+
+  geom_errorbar(aes(ymin = mean - ci, ymax = mean + ci), width = 0.2)+
+    geom_text(aes(label = p.value, x = 1.5, y = 1.05), size = 3)+
+    geom_segment(aes(x = 1, xend = 2, y = 1, yend = 1))+
+    geom_segment(aes(x = 1, xend = 1, y = 1, yend = .95))+
+    geom_segment(aes(x = 2, xend = 2, y = 1, yend = .95))+
+  labs(y = "log10 recovery",
+       x = "Water type")
+```
+
+```{r Figure 1}
+
+(volume + method + theme(axis.title.y = element_blank())) / 
+  (shape + water_type + theme(axis.title.y = element_blank()))+ plot_annotation(tag_levels = "a")
+
+```
+
+<br>
+
+Figure 1:
+
+<br>
+
+### Unspiked samples
+
+#### overview ANOVA and multiple linear model
+
+<br>
+
+Table 3: Analysis of variance of viral recovery from wastewater without spiking.
+```{r anova unspiked}
+unspiked_anova <- anova(lm(log10(rec) ~ volume + method , unspiked))
+
+unspiked_anova_table <- tibble(Variable = rownames(unspiked_anova))|>
+  bind_cols(as_tibble(unspiked_anova))|>
+  rename("P value" = `Pr(>F)`)|>
+  rowwise()|>
+  mutate(`P value` = pvalue_fun(`P value`),
+         across(2:5, ~round(.x, 2)),
+         Variable = str_replace_all(Variable, c("volume" = "Volume",
+                                        "method" = "Method",
+                                        "size_nm" = "Virus genome size (nm)",
+                                        "water_type" = "Water type",
+                                        "shape" = "Virus shape")))
+
+
+knitr::kable(unspiked_anova_table)
+
+```
+
+Table 4: Multiple linear model predicting viral recovery from wastewater without spiking.
+```{r multiple lm unspiked}
+
+unspiked_lm_table <- tidy(lm(log10(rec) ~  volume + method, unspiked))|>
+  mutate(term = str_replace_all(term, c("[(]Intercept[)]" = "Intercept",
+                                        "volume" = "Volume",
+                                        "methodBE-PEG" = "Method: BE-PEG",
+                                        "methodIP" = "Method: IP",
+                                        "methodPEG" = "Method: PEG",
+                                        "size_nm" = "Virus genome size (nm)",
+                                        "water_typeWW" = "Water type: WW",
+                                        "shapespherical" = "Virus shape: spherical")),
+         across(2:4, ~round(.x, 2)))|>
+  rowwise()|>
+  mutate(p.value = pvalue_fun(p.value))
+
+knitr::kable(unspiked_lm_table, col.names = c("Variables", "Estimate", "Standard error", "T value", "P value"))
+
+```
+
+<br>
+
+```{r volume U}
+qq_Uvolume <- unspiked|>
+  mutate(volume = factor(as.character(volume), levels = c("15", "20", "37.5", "50", "150")))|>
+  ggplot(aes(sample = log10(rec)))+
+  geom_qq()+
+  geom_qq_line()+
+  facet_wrap(~volume, scales = "free")
+
+
+
+kruskal_volume_lbl <- tibble(label = stat_paste_fun(kruskal.test(log10(rec) ~ volume, unspiked)),
+                           row = 1)
+
+Uvolume <- unspiked|>
+  mutate(row = row_number())|>
+  left_join(kruskal_volume_lbl, by = c("row"))|>
+  mutate(volume = fct_reorder(as.character(volume), volume))|>
+  ggplot(aes(volume, log10(rec)))+
+  geom_boxplot()+
+  geom_text(aes(x = 2, y = 1.5, label = label), size = 3)+
+  labs(y = "log10 recovery",
+       x = "Volume (ml)")
+
+Uvolume_virus <- unspiked|>
+  mutate(volume = fct_reorder(as.character(volume), volume))|>
+  ggplot(aes(volume, log10(rec)))+
+  geom_boxplot()+
+  facet_wrap(~virus, scales = "free_y")+
+  labs(y = "log10 recovery",
+       x = "Volume (ml)")
+```
+
+```{r Method U}
+unspiked_method_data <- unspiked_ami_pel|>
+  filter(volume == 15)
+
+qq_Umethod <- unspiked_method_data|>
+  ggplot(aes(sample = log10(rec)))+
+  geom_qq()+
+  geom_qq_line()+
+  facet_wrap(~method, scales = "free_y")
+
+stat <- kruskal.test(log10(rec) ~ method, unspiked_method_data)
+pairwise.wilcox.test(log10(unspiked_method_data$rec), unspiked_method_data$method, paired = TRUE)
+
+kruskal_lbl <- tibble(label = stat_paste_fun(stat), row = 1)
+
+Umethod <- unspiked_method_data|>
+  mutate(row = row_number())|>
+  left_join(kruskal_lbl, by = "row")|>
+  ungroup()|>
+  mutate(method = fct_reorder(.f = method, .x = log10(rec), .fun = function(.x){median(.x, na.rm = TRUE)}))|>
+  ggplot(aes(method, log10(rec)))+
+  geom_boxplot()+
+  geom_text(aes(label = label, y = 1.5, x = 2.5), size = 3)+
+  labs(y = "log10 recovery",
+       x = "Method")
+
+Umethod_virus <- unspiked_method_data|>
+  ungroup()|>
+  mutate(method = fct_reorder(.f = method, .x = log10(rec), .fun = function(.x){median(.x, na.rm = TRUE)}))|>
+  ggplot(aes(method, log10(rec)))+
+  geom_boxplot()+
+  facet_wrap(~virus, scales = "free_y")+
+  labs(y = "log10 recovery",
+       x = "Method")
+```
+
+```{r Figure 2}
+
+Uvolume + (Uvolume_virus + theme(axis.text.x = element_text(angle = 90), axis.title = element_blank())) +
+  Umethod + (Umethod_virus + theme(axis.text.x = element_text(angle = 90), axis.title = element_blank())) +
+  plot_layout(ncol = 2, nrow = 2, widths = c(1.2, 0.8, 1.2, 0.8)) + plot_annotation(tag_levels = "a")
+
+```
+
+<br>
+
+Figure 2:
+
+<br>
+
+
+### Pellet
+
+<br>
+
+```{r pellet}
+pellet <- spike_ami_pel|>
+ filter(method %in% c("PEG", "BE-PEG", "Pellet", "Pellet_BE"))|>
+  mutate(BE = str_detect(method, "BE"),
+         BE = case_when(BE == TRUE ~ "Beef extract",
+                        BE == FALSE ~ "No beef extract"))
+  
+qq_pellet <- pellet|>
+  ggplot(aes(sample =log10(rec)))+
+  geom_qq()+
+  geom_qq_line()+
+  facet_wrap(~method, scales = "free")
+
+facets <- pellet|>ungroup()|>count(BE)|>pull(BE)
+t.test.pellet <- tibble(BE = facets, stat = NA_character_, row = 2)
+for (i in 1:length(facets)) {
+  
+  t.test.pellet[i,2] <- stat_paste_fun(t.test(log10(rec) ~ method, data = (pellet|>filter(BE == facets[i])) ))
+  
+}
+
+pellet_fig <- pellet|>
+  mean_ci_summary(groups = c("method", "BE"), variable = "rec", log10 = TRUE)|>
+  mutate(method = str_replace_all(method, c("Pellet_BE" = "Pellet")))|>
+  group_by(BE)|>
+  mutate(row = row_number(),
+         max = max(mean + ci) * (row - (max(row)-1)),
+         max = case_when(max == 0 ~ NA_real_,
+                         TRUE ~ max))|>
+  left_join(t.test.pellet, by = c("BE", "row"))|>
+  ggplot(aes(method, mean))+
+  geom_boxplot()+
+  geom_errorbar(aes(ymin = mean - ci, ymax = mean + ci), width = 0.2)+
+  facet_wrap(~BE, scales = "free")+
+  geom_text(aes(label = stat, x = 1.5, y = max + ci * 1.2), size = 3)+
+  geom_segment(aes(x = 1, xend = 2, y = max + (ci * 0.7), yend = max + (ci * 0.7)))+
+  geom_segment(aes(x = 1, xend = 1, y = max + ci * 0.7, yend = max + (ci * 0.4)))+
+  geom_segment(aes(x = 2, xend = 2, y = max + ci * 0.7, yend = max + (ci * 0.4)))+
+  labs(y = "log10 recovery",
+       x = "Method")
+```
+
+```{r Figure 3, fig.height = 4.5}
+pellet_fig
+```
+
+<br>
+
+Figure 3
