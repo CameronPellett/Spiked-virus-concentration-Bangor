@@ -154,7 +154,7 @@ unspiked_ami_pel <- data|>
 anova(lm(log10(rec) ~ volume + method + size_nm + enveloped + shape + water_type, spike))
 #summary(lm(log10(rec) ~  volume  + enveloped  + method + size_nm + shape + water_type, spike))
 
-summary(lm(log10(rec) ~  volume + method + size_nm + water_type + shape, spike))
+summary(lm(log10(rec) ~  volume + method + size_nm + enveloped + water_type + shape, spike))
 
 ####################
 
@@ -165,20 +165,25 @@ qq_volume <- spike|>
   ggplot(aes(sample = log10(rec)))+
   geom_qq()+
   geom_qq_line()+
-  facet_wrap(~volume, scales = "free")
+  facet_wrap(~volume + water_type, scales = "free")
 
 
-anova_volume_lbl <- tibble(label = paste_anova_fun(anova(lm(log10(rec) ~ volume, spike))),
-       volume = 37.5)
+anova_volume_lbl <- tibble(label = c(paste_anova_fun(anova(lm(log10(rec) ~ volume, filter(spike, water_type == "WW")))),
+                                     paste_anova_fun(anova(lm(log10(rec) ~ volume, filter(spike, water_type == "DW"))))),
+       water_type = c("WW", "DW"),
+       row = c(1,1))
 
 volume <- spike|>
-  mean_ci_summary(groups = c("volume"), variable = "rec", log10 = TRUE)|>
-  left_join(anova_volume_lbl, by = "volume")|>
-  mutate(volume = fct_reorder(as.character(volume), volume))|>
+  mean_ci_summary(groups = c("volume", "water_type"), variable = "rec", log10 = TRUE)|>
+  group_by(water_type)|>
+  mutate(row = row_number(),
+         volume = fct_reorder(as.character(volume), volume))|>
+  left_join(anova_volume_lbl, by = c("water_type", "row"))|>
   ggplot(aes(volume, mean))+
   geom_col()+
   geom_errorbar(aes(ymin = mean - ci, ymax = mean + ci), width = 0.2)+
-  geom_text(aes(y = 1.1, label = label), size = 3)+
+  facet_wrap(~water_type, scale = "free_y")+
+  geom_text(aes(y = 1.1, x = 2, label = label), size = 3)+
   labs(y = "log10 recovery",
        x = "Volume (ml)")
 
@@ -205,6 +210,19 @@ volume_virus <- spike|>
        x = "Volume (ml)")
 
 (volume + volume_method)
+
+spike|>
+  mutate(volume = factor(as.character(volume), levels = c("15", "20", "37.5", "50", "150")))|>
+  mean_ci_summary(groups = c("volume", "water_type"), variable = "rec", log10 = TRUE)|> #, "water_type" # , "virus"
+  ggplot(aes(volume, mean))+
+  geom_col()+
+  geom_errorbar(aes(ymin = mean - ci, ymax = mean + ci), width = 0.2)+
+  #facet_wrap(~virus, scales = "free")+
+  #facet_wrap(~water_type, scales = "free")+
+  facet_wrap(~water_type, scales = "free")+
+  labs(y = "log10 recovery",
+       x = "Volume (ml)")
+
 ###############################
 
 #method
@@ -219,21 +237,34 @@ qq_method <- spike_method_data|>
   facet_wrap(~method, scales = "free_y")
 
 stat <- anova(lm(log10(rec) ~ method, spike_method_data))
-pairwise.t.test(log10(spike_method_data$rec), spike_method_data$method, paired = TRUE)
+pairwise_meth <- pairwise.t.test(log10(spike_method_data$rec), spike_method_data$method, paired = TRUE)[["p.value"]]
+
+top_method_pv <- as_tibble(pairwise_meth, rownames = "vars")|>
+  filter(!vars %in% c("PEG", "IP"))|>
+  select(-contains("IP"), -starts_with("PEG"))|>
+  pivot_longer(2:last_col(), names_to = "var.y", values_to = "p.value")|>
+  na.omit()|>
+  summarise(min(p.value))|>
+  pull()|>
+  pvalue_fun()
+
+
 
 anova_lbl <- tibble(label = paste_anova_fun(stat), method = "AS")
 
 method <- spike_method_data|>
-  mean_ci_summary(c("method"), "rec", TRUE)|>
+  mean_ci_summary(c("method", "water_type"), "rec", TRUE)|>
   left_join(anova_lbl, by = "method")|>
-  mutate(method = fct_reorder(.f = method, .x = mean, .fun = median))|>
+  ungroup()|>
+  mutate(method = fct_reorder(.f = method, .x = mean, .fun = min))|>
   ggplot(aes(method, mean))+
   geom_col()+
   geom_errorbar(aes(ymin = mean - ci, ymax = mean + ci), width = 0.2)+
   geom_text(aes(label = label, y = 1.75), size = 3)+
-  labs(y = "log10 recovery",
+  facet_wrap(~water_type)+
+  labs(y = expression(log[10]*" recovery"),
        x = "Method")
-
+bquo
 ######################
 
 #shape

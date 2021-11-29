@@ -68,6 +68,22 @@ pvalue_fun <- function(p.value){
   }
 }
 
+pvalue_star <- function(p.value){
+  if(is.na(p.value)){
+    NA_character_
+  }else if(p.value > 0.05){
+    "."
+  }else if(p.value < 0.05 & p.value > 0.01){
+    "*"
+  }else if(p.value < 0.01 & p.value > 0.001){
+    "**"
+  }else if(p.value < 0.001){
+    "***"
+  }else {
+    "something went wrong"
+  }
+}
+
 stat_paste_fun <- function(stat){
   paste0(str_remove_all(stat[["method"]][[1]], "\n\t"), ": ", 
          str_remove_all(names(stat[["statistic"]]), "Kruskal-Wallis "), " = ",
@@ -85,6 +101,79 @@ stat_paste_fun <- function(stat){
 paste_anova_fun <- function(anova){
   paste0("ANOVA: ", "F value = ", round((anova$`F value`)[1], 2), ", ", "p-value ", pvalue_fun(anova$`Pr(>F)`[1]))
 }
+
+lmR2adj <- function(lm){
+  
+  R2 <- 1-((sum(residuals(lm)^2))/
+             (sum((lm$model[[1]] - mean(lm$model[[1]]))^2)))
+  
+  1- ((1 - R2) * (length(lm$model[[1]] ) - 1)/
+                 (length(lm$model[[1]] ) - length(lm$coefficients) - 1))
+}
+
+lmR2 <- function(lm){
+  
+  1-((sum(residuals(lm)^2))/
+             (sum((lm$model[[1]] - mean(lm$model[[1]]))^2)))
+}
+
+pairwise_diff_comps <- function(pairwise_pv_matrix){
+  
+  pairwise_diff <- as_tibble(pairwise_pv_matrix, rownames = "vars")|>
+  pivot_longer(2:last_col(), names_to = "var.y", values_to = "p.value")|>
+  na.omit()|>
+  filter(p.value < 0.05)|>
+  select(1,2)|>
+  unite("comp", c(1,2), sep = " ~ ")
+  
+  comp_diffs <- ""
+  
+  for (i in 1:nrow(pairwise_diff)) {
+    
+    if(i == nrow(pairwise_diff)){
+      comp_diffs <- paste0(c(comp_diffs, pairwise_diff[[i,1]]), collapse = ", and ")
+    }else if(i != 1){
+      comp_diffs <- paste0(c(comp_diffs, pairwise_diff[[i,1]]), collapse = ", ")
+    }else{
+      comp_diffs <- pairwise_diff[[i,1]]
+    }
+    
+  }
+  
+  return(comp_diffs)
+}
+
+plot_assumptions <- function(model, obs, bins = 30){
+        #create tibble for use in ggplot of model assumptions
+        df <- tibble(
+                observations = obs,
+                fitted = fitted(model),
+                residuals = resid(model),
+                standardised_residuals = sqrt(resid(model)^2),
+                RMSresiduals = sqrt(mean(resid(model)^2)))
+        
+        
+        a <- ggplot(df, aes(fitted, residuals))+
+                geom_point()+
+                geom_abline(aes(slope = 0, intercept = 0))
+                #labs(title = "Heteroscedasticity", subtitle = "Check trends not captured by model")
+        
+        b <- ggplot(df, aes(residuals))+
+                geom_histogram(bins = bins)
+        
+        c <- ggplot(df, aes(sample = residuals))+
+                geom_qq()+
+                geom_qq_line()#+
+                #labs(title = "Quantile-quantile plot", subtitle = "check normality of residuals")
+        
+        d <- ggplot(df, aes(observations, fitted))+
+                geom_point()+
+                geom_abline()#+
+                #labs(subtitle = "Check accuracy of model across whole dataset")
+        
+        plot <- a+b+c+d+plot_layout(ncol = 2, nrow = 2)+plot_annotation(tag_levels = "a")
+        return(plot)
+} 
 
 ```
 
@@ -125,6 +214,10 @@ spike_ami_pel <- data|>
          size_nm = as.double(size_nm))
 
 
+spike_method_data <- spike_ami_pel|>
+  filter(volume == 15)
+
+
 unspiked <- data|>
   select(-Sample_code)|>
   rename("method" = Method, "spike" = Spike,
@@ -154,42 +247,61 @@ unspiked_ami_pel <- data|>
                          TRUE ~ rec),
          size_nm = as.double(size_nm))
 
+unspiked_method_data <- unspiked_ami_pel|>
+  filter(volume == 15)
+
 ```
+## Methods
+
+### Statistical methodology
+Data analysis and statistical tests were carried out in R (R Core Team, 2020); the full script and data are provided in a dedicated repository (https://github.com/CameronPellett/Spiked-virus-concentration-Bangor). 
+
+Viral recovery for both spiked and unspiked experiments was log~10~ transformed following assessment of distribution. Sample starting volume, concentration method, water type, target virus shape, target virus genome size, and virus envelope were selected as factors and co-variates of viral recovery. The selected features were first assessed in combination as predictors of viral recovery using multiple linear regression (see supplementary materials Figure S1 and S3 for residuals plots). Following the regression statistical comparison of individual features with two levels were made with Welch two sample t-tests when the underlying distribution was Gaussian; otherwise Wilcoxon rank sum tests were carried out (see Figure S2, S4 and S5 for qq-plots). Statistical comparisons of features with three or more levels were made with a one-way ANOVA when the underlying distribution was Gaussian, followed by pairwise Welch two sample t-tests; otherwise a Kruskal-Wallis rank sum test followed by pairwise Wilcoxon rank sum tests were carried out (see Figure S2, and S4 for qq-plots). Paired tests were not selected due to missing data created by removal of undetermined results and removal during qPCR quality control.
+
+ 
+<br>
 
 ## Results
 
-### Spiked samples
+### Spiked samples -- sample volume, concentration method, water type, and virus shape influence viral recovery
 
-#### overview ANOVA and multiple linear model 
+```{r stats}
+pairwise_meth <- pairwise.t.test(log10(spike_method_data$rec), spike_method_data$method, paired = TRUE)[["p.value"]]
+
+top_method_pv <- as_tibble(pairwise_meth, rownames = "vars")|>
+  filter(!vars %in% c("PEG", "IP"))|>
+  select(-contains("IP"), -starts_with("PEG"))|>
+  pivot_longer(2:last_col(), names_to = "var.y", values_to = "p.value")|>
+  na.omit()|>
+  summarise(min(p.value))|>
+  pull()|>
+  pvalue_fun()
+
+worst_method_pv <- as_tibble(pairwise_meth, rownames = "vars")|>
+  filter(vars %in% c("PEG", "IP"))|>
+  select(vars, contains("IP"), starts_with("PEG"))|>
+  pivot_longer(2:last_col(), names_to = "var.y", values_to = "p.value")|>
+  na.omit()|>
+  summarise(min(p.value))|>
+  pull()|>
+  pvalue_fun()
+
+
+notes <- (tibble(estimate.x = "p-value: < 0.001 [***]; < 0.01 [**]; < 0.05 [*]; > 0.05 [.]"))
+```
+
+
+A multiple linear regression identified sample starting volume, concentration method, water type, and target virus shape as significant predictors of log~10~ transformed viral recovery in spiked samples (Table 1). Virus genome size and envelope were not found to improve the model fit and their removal resulted in an improved Akaike information criterion. Further investigation revealed de-ionised water had improved recovery over wastewater (`r stat_paste_fun(t.test(log10(rec) ~ water_type, data = spike))`), and a lower starting volume resulted in improved recovery in wastewater, but not in de-ionised water (`r paste0("WW ", paste_anova_fun(anova(lm(log10(rec) ~ volume, filter(spike, water_type == "WW")))))|> paste0("; DW ", paste_anova_fun(anova(lm(log10(rec) ~ volume, filter(spike, water_type == "DW")))))`), both differences likely due to differing levels of inhibitors (Figure 1a and b). Of the tested methods at 15ml starting volumes, the Amicon method had significantly greater recovery, closely followed by BE-PEG, then AS (Figure 1c; pairwise comparisons with Welch two sample t-tests resulted in p-values `r top_method_pv` (Holm adjustment method)). IP and PEG had lower recovery than the top three but did not differ from one another significantly (p-value `r worst_method_pv`). Icosahedral virus shapes had greater recovery than spherical viruses, -----??unsure why, are their genomes circular, or something else??---- (Figure 1d).  
 
 <br>
 
-Table 1: Analysis of variance of recovery of spiked virus.
-```{r overview anova }
-spiked_anova <- anova(lm(log10(rec) ~ volume + method + size_nm + enveloped + shape + water_type, spike))
 
-spiked_anova_table <- tibble(Variable = rownames(spiked_anova))|>
-  bind_cols(as_tibble(spiked_anova))|>
-  rename("P value" = `Pr(>F)`)|>
-  rowwise()|>
-  mutate(`P value` = pvalue_fun(`P value`),
-         across(2:5, ~round(.x, 2)),
-         Variable = str_replace_all(Variable, c("volume" = "Volume",
-                                        "method" = "Method",
-                                        "size_nm" = "Virus genome size (nm)",
-                                        "water_type" = "Water type",
-                                        "shape" = "Virus shape")))
-
-
-knitr::kable(spiked_anova_table)
-
-
-```
-
-Table 2: Multiple linear model predicting recovery of spiked virus.
+Table 1: Multiple linear regression predicting log~10~ transformed recovery of spiked virus. Amicon and pellet methods were excluded from the regression due to different starting volumes. The model results include the variable coefficient indicating its effect (positive numbers indicating increased recovery), followed by the standard error in brackets, and a significance code (`r notes`).
 ```{r overview multiple linear model}
 
-lm_table <- tidy(lm(log10(rec) ~  volume + method + size_nm + water_type + shape, spike))|>
+tbl_arrangement <- tibble(term = c("Intercept", "Volume", "Method: BE-PEG", "Method: PEG", "Method: IP", "Water type: WW", "Virus shape: spherical", "Virus genome size (nm)", "Enveloped: TRUE"))
+
+lm_table <- tidy(lm(log10(rec) ~  volume + method + size_nm + enveloped + water_type + shape, spike))|>
   mutate(term = str_replace_all(term, c("[(]Intercept[)]" = "Intercept",
                                         "volume" = "Volume",
                                         "methodBE-PEG" = "Method: BE-PEG",
@@ -197,20 +309,84 @@ lm_table <- tidy(lm(log10(rec) ~  volume + method + size_nm + water_type + shape
                                         "methodPEG" = "Method: PEG",
                                         "size_nm" = "Virus genome size (nm)",
                                         "water_typeWW" = "Water type: WW",
-                                        "shapespherical" = "Virus shape: spherical")),
-         across(2:4, ~round(.x, 2)))|>
+                                        "shapespherical" = "Virus shape: spherical",
+                                        "envelopedyes" = "Enveloped: TRUE")),
+         across(2:4, ~round(.x, 3)))|>
   rowwise()|>
-  mutate(p.value = pvalue_fun(p.value))
+  mutate(p.value = pvalue_star(p.value))|>
+  unite(col = "estimate", c("estimate", "std.error"), sep = " (")|>
+  unite(col = "estimate", c(2,4), sep = ") ")|>
+  select(-statistic)
 
-knitr::kable(lm_table, col.names = c("Variables", "Estimate", "Standard error", "T value", "P value"))
+lm_table2 <- tidy(lm(log10(rec) ~  volume + method + size_nm + water_type + shape, spike))|>
+  mutate(term = str_replace_all(term, c("[(]Intercept[)]" = "Intercept",
+                                        "volume" = "Volume",
+                                        "methodBE-PEG" = "Method: BE-PEG",
+                                        "methodIP" = "Method: IP",
+                                        "methodPEG" = "Method: PEG",
+                                        "size_nm" = "Virus genome size (nm)",
+                                        "water_typeWW" = "Water type: WW",
+                                        "shapespherical" = "Virus shape: spherical",
+                                        "envelopedyes" = "Enveloped: TRUE")),
+         across(2:4, ~round(.x, 3)))|>
+  rowwise()|>
+  mutate(p.value = pvalue_star(p.value))|>
+  unite(col = "estimate", c("estimate", "std.error"), sep = " (")|>
+  unite(col = "estimate", c(2,4), sep = ") ")|>
+  select(-statistic)
 
+lm_table3 <- tidy(lm(log10(rec) ~  volume + method + water_type + shape, spike))|>
+  mutate(term = str_replace_all(term, c("[(]Intercept[)]" = "Intercept",
+                                        "volume" = "Volume",
+                                        "methodBE-PEG" = "Method: BE-PEG",
+                                        "methodIP" = "Method: IP",
+                                        "methodPEG" = "Method: PEG",
+                                        "size_nm" = "Virus genome size (nm)",
+                                        "water_typeWW" = "Water type: WW",
+                                        "shapespherical" = "Virus shape: spherical",
+                                        "envelopedyes" = "Enveloped: TRUE")),
+         across(2:4, ~round(.x, 3)))|>
+  rowwise()|>
+  mutate(p.value = pvalue_star(p.value))|>
+  unite(col = "estimate", c("estimate", "std.error"), sep = " (")|>
+  unite(col = "estimate", c(2,4), sep = ") ")|>
+  select(-statistic)
+
+aicS <- tibble(
+  term = "AIC", 
+  estimate.x = AIC(lm(log10(rec) ~  volume + method + size_nm + enveloped + water_type + shape, spike)),
+  estimate.y = AIC(lm(log10(rec) ~  volume + method + size_nm + water_type + shape, spike)),
+  estimate = AIC(lm(log10(rec) ~  volume + method + water_type + shape, spike))
+)|>
+  mutate(across(2:4, ~as.character(round(.x, 3))))
+
+R2S <- tibble(
+  term = "R-squared",
+  estimate.x = lmR2(lm(log10(rec) ~  volume + method + size_nm + enveloped + water_type + shape, spike)),
+  estimate.y = lmR2(lm(log10(rec) ~  volume + method + size_nm + water_type + shape, spike)),
+  estimate = lmR2(lm(log10(rec) ~  volume + method + water_type + shape, spike))
+)|>
+  mutate(across(2:4, ~as.character(round(.x, 3))))
+
+adjR2S <- tibble(
+  term = "Adj. R-squared",
+  estimate.x = lmR2adj(lm(log10(rec) ~  volume + method + size_nm + enveloped + water_type + shape, spike)),
+  estimate.y = lmR2adj(lm(log10(rec) ~  volume + method + size_nm + water_type + shape, spike)),
+  estimate = lmR2adj(lm(log10(rec) ~  volume + method + water_type + shape, spike))
+)|>
+  mutate(across(2:4, ~as.character(round(.x, 3))))
+
+lm_table_fin <- tbl_arrangement|>
+  left_join(lm_table , by = "term")|>
+  left_join(lm_table2, by = ("term"))|>
+  left_join(lm_table3, by = ("term"))|>
+  bind_rows(tibble(term = ""))|>
+  bind_rows(aicS, R2S, adjR2S)|>
+  mutate(across(1:4, ~replace_na(.x, "")))
+
+knitr::kable(lm_table_fin, col.names = c("Variables", "Model 1", "Model 2", "Model 3"))
 
 ```
-
-
-<br>
-
-### Figure
 
 <br>
 
@@ -220,28 +396,32 @@ qq_volume <- spike|>
   ggplot(aes(sample = log10(rec)))+
   geom_qq()+
   geom_qq_line()+
-  facet_wrap(~volume, scales = "free")
+  facet_wrap(~volume + water_type, scales = "free")
 
 
-anova_volume_lbl <- tibble(label = paste_anova_fun(anova(lm(log10(rec) ~ volume, spike))),
-       volume = 37.5)
+anova_volume_lbl <- tibble(label = c(paste_anova_fun(anova(lm(log10(rec) ~ volume, filter(spike, water_type == "WW")))),
+                                     paste_anova_fun(anova(lm(log10(rec) ~ volume, filter(spike, water_type == "DW"))))),
+       water_type = c("WW", "DW"),
+       row = c(1,1))|>
+  mutate(label = str_remove_all(label, "ANOVA: "))
 
 volume <- spike|>
-  mean_ci_summary(groups = c("volume"), variable = "rec", log10 = TRUE)|>
-  left_join(anova_volume_lbl, by = "volume")|>
-  mutate(volume = fct_reorder(as.character(volume), volume))|>
+  mean_ci_summary(groups = c("volume", "water_type"), variable = "rec", log10 = TRUE)|>
+  group_by(water_type)|>
+  mutate(row = row_number(),
+         volume = fct_reorder(as.character(volume), volume))|>
+  left_join(anova_volume_lbl, by = c("water_type", "row"))|>
   ggplot(aes(volume, mean))+
   geom_col()+
   geom_errorbar(aes(ymin = mean - ci, ymax = mean + ci), width = 0.2)+
-  geom_text(aes(y = 1.1, label = label), size = 3)+
-  labs(y = "log10 recovery",
+  facet_wrap(~water_type)+
+  geom_text(aes(y = 1.1, x = 2, label = label), size = 3)+
+  labs(y = expression(log[10]*" recovery"),
        x = "Volume (ml)")
 ```
 
-```{r method}
-spike_method_data <- spike_ami_pel|>
-  filter(volume == 15)
 
+```{r method}
 qq_method <- spike_method_data|>
   ggplot(aes(sample = log10(rec)))+
   geom_qq()+
@@ -249,7 +429,17 @@ qq_method <- spike_method_data|>
   facet_wrap(~method, scales = "free_y")
 
 stat <- anova(lm(log10(rec) ~ method, spike_method_data))
-pairwise.t.test(log10(spike_method_data$rec), spike_method_data$method, paired = TRUE)
+
+pairwise_meth <- pairwise.t.test(log10(spike_method_data$rec), spike_method_data$method, paired = TRUE)[["p.value"]]
+
+top_method_pv <- as_tibble(pairwise_meth, rownames = "vars")|>
+  filter(!vars %in% c("PEG", "IP"))|>
+  select(-contains("IP"), -starts_with("PEG"))|>
+  pivot_longer(2:last_col(), names_to = "var.y", values_to = "p.value")|>
+  na.omit()|>
+  summarise(min(p.value))|>
+  pull()|>
+  pvalue_fun()
 
 anova_lbl <- tibble(label = paste_anova_fun(stat), method = "AS")
 
@@ -261,7 +451,7 @@ method <- spike_method_data|>
   geom_col()+
   geom_errorbar(aes(ymin = mean - ci, ymax = mean + ci), width = 0.2)+
   geom_text(aes(label = label, y = 1.75), size = 3)+
-  labs(y = "log10 recovery",
+  labs(y = expression(log[10]*" recovery"),
        x = "Method")
 ```
 
@@ -287,7 +477,7 @@ shape <- spike|>
   geom_segment(aes(x = 1, xend = 2, y = max(mean + ci) + max(ci) * 0.7, yend = max(mean + ci) + (max(ci) * 0.7)))+
   geom_segment(aes(x = 1, xend = 1, y = max(mean + ci) + max(ci) * 0.7, yend = max(mean + ci) + (max(ci) * 0.4)))+
   geom_segment(aes(x = 2, xend = 2, y = max(mean + ci) + max(ci) * 0.7, yend = max(mean + ci) + (max(ci) * 0.4)))+
-  labs(y = "log10 recovery",
+  labs(y = expression(log[10]*" recovery"),
        x = "Shape")
 ```
 
@@ -320,51 +510,39 @@ water_type <- spike|>
     geom_segment(aes(x = 1, xend = 2, y = 1, yend = 1))+
     geom_segment(aes(x = 1, xend = 1, y = 1, yend = .95))+
     geom_segment(aes(x = 2, xend = 2, y = 1, yend = .95))+
-  labs(y = "log10 recovery",
+  labs(y = expression(log[10]*" recovery"),
        x = "Water type")
 ```
 
 ```{r Figure 1}
 
-(volume + method + theme(axis.title.y = element_blank())) / 
-  (shape + water_type + theme(axis.title.y = element_blank()))+ plot_annotation(tag_levels = "a")
+(volume + water_type + theme(axis.title.y = element_blank())) / 
+  (method + shape + theme(axis.title.y = element_blank()))+ plot_annotation(tag_levels = "a")
 
 ```
 
 <br>
 
-Figure 1:
+Figure 1: influence of starting volume grouped by water type (a), water type (b), concentration method (c) and target virus shape (d) on mean log~10~ transformed viral recovery using qPCR. Line ranges indicate the 95% confidence interval calculated based on a t distribution.
 
 <br>
 
-### Unspiked samples
+### Unspiked samples -- sample volume and concentration method influence viral recovery at low concentraions
 
-#### overview ANOVA and multiple linear model
-
-<br>
-
-Table 3: Analysis of variance of viral recovery from wastewater without spiking.
-```{r anova unspiked}
-unspiked_anova <- anova(lm(log10(rec) ~ volume + method , unspiked))
-
-unspiked_anova_table <- tibble(Variable = rownames(unspiked_anova))|>
-  bind_cols(as_tibble(unspiked_anova))|>
-  rename("P value" = `Pr(>F)`)|>
-  rowwise()|>
-  mutate(`P value` = pvalue_fun(`P value`),
-         across(2:5, ~round(.x, 2)),
-         Variable = str_replace_all(Variable, c("volume" = "Volume",
-                                        "method" = "Method",
-                                        "size_nm" = "Virus genome size (nm)",
-                                        "water_type" = "Water type",
-                                        "shape" = "Virus shape")))
+```{r stats U}
+pairwise_methU <- pairwise.wilcox.test(log10(unspiked_method_data$rec), unspiked_method_data$method, paired = TRUE)[["p.value"]]
 
 
-knitr::kable(unspiked_anova_table)
+pairwise_diffs <- pairwise_diff_comps(pairwise_methU)
 
 ```
 
-Table 4: Multiple linear model predicting viral recovery from wastewater without spiking.
+A multiple linear regression found sample starting volume and concentration method to be significant predictors of unspiked log~10~ viral recovery (Table 2). These results provide additional evidence of improved recovery at lower volumes, supported by median comparisons and trends being apparent even when separated by virus (Figure 2a and b; `r stat_paste_fun(kruskal.test(log10(rec) ~ volume, unspiked))`). The method comparison, however, did not support the spiked results: in unspiked samples the BE-PEG and PEG methods had the highest median recoveries, but these were only significantly different to AS and could not be distinguished from Amicon (Figure 2c and d; pairwise Wilcoxon signed rank exact tests found `r pairwise_diffs` to p-values < 0.05). 
+
+
+<br>
+
+Table 2: Multiple linear regression predicting log~10~ transformed recovery of virus naturally present in wastewater. Amicon and pellet methods were excluded from the regression due to different starting volumes. The model results include the variable coefficient indicating its effect (positive numbers indicating increased recovery), followed by the standard error in brackets, and a significance code (`r notes`).
 ```{r multiple lm unspiked}
 
 unspiked_lm_table <- tidy(lm(log10(rec) ~  volume + method, unspiked))|>
@@ -376,11 +554,39 @@ unspiked_lm_table <- tidy(lm(log10(rec) ~  volume + method, unspiked))|>
                                         "size_nm" = "Virus genome size (nm)",
                                         "water_typeWW" = "Water type: WW",
                                         "shapespherical" = "Virus shape: spherical")),
-         across(2:4, ~round(.x, 2)))|>
+         across(2:4, ~round(.x, 3)))|>
   rowwise()|>
-  mutate(p.value = pvalue_fun(p.value))
+  mutate(p.value = pvalue_star(p.value))|>
+  unite(col = "estimate", c("estimate", "std.error"), sep = " (")|>
+  unite(col = "estimate", c(2,4), sep = ") ")|>
+  select(-statistic)
 
-knitr::kable(unspiked_lm_table, col.names = c("Variables", "Estimate", "Standard error", "T value", "P value"))
+aicS <- tibble(
+  term = "AIC", 
+  estimate = AIC(lm(log10(rec) ~  volume + method, unspiked))
+)|>
+  mutate(across(2, ~as.character(round(.x, 3))))
+
+R2S <- tibble(
+  term = "R-squared",
+  estimate = lmR2(lm(log10(rec) ~  volume + method, unspiked))
+)|>
+  mutate(across(2, ~as.character(round(.x, 3))))
+
+adjR2S <- tibble(
+  term = "Adj. R-squared",
+  estimate = lmR2adj(lm(log10(rec) ~  volume + method, unspiked))
+)|>
+  mutate(across(2, ~as.character(round(.x, 3))))
+
+
+unspiked_lm_fin <- unspiked_lm_table|>
+  bind_rows(tibble(term = ""))|>
+  bind_rows(aicS, R2S, adjR2S)|>
+  mutate(across(1:last_col(), ~replace_na(.x, "")))
+
+
+knitr::kable(unspiked_lm_fin, col.names = c("Variables", "Model"))
 
 ```
 
@@ -406,7 +612,7 @@ Uvolume <- unspiked|>
   ggplot(aes(volume, log10(rec)))+
   geom_boxplot()+
   geom_text(aes(x = 2, y = 1.5, label = label), size = 3)+
-  labs(y = "log10 recovery",
+  labs(y = expression(log[10]*" recovery"),
        x = "Volume (ml)")
 
 Uvolume_virus <- unspiked|>
@@ -414,13 +620,12 @@ Uvolume_virus <- unspiked|>
   ggplot(aes(volume, log10(rec)))+
   geom_boxplot()+
   facet_wrap(~virus, scales = "free_y")+
-  labs(y = "log10 recovery",
+  labs(y = expression(log[10]*" recovery"),
        x = "Volume (ml)")
 ```
 
 ```{r Method U}
-unspiked_method_data <- unspiked_ami_pel|>
-  filter(volume == 15)
+
 
 qq_Umethod <- unspiked_method_data|>
   ggplot(aes(sample = log10(rec)))+
@@ -429,7 +634,7 @@ qq_Umethod <- unspiked_method_data|>
   facet_wrap(~method, scales = "free_y")
 
 stat <- kruskal.test(log10(rec) ~ method, unspiked_method_data)
-pairwise.wilcox.test(log10(unspiked_method_data$rec), unspiked_method_data$method, paired = TRUE)
+#pairwise.wilcox.test(log10(unspiked_method_data$rec), unspiked_method_data$method, paired = TRUE)
 
 kruskal_lbl <- tibble(label = stat_paste_fun(stat), row = 1)
 
@@ -441,7 +646,7 @@ Umethod <- unspiked_method_data|>
   ggplot(aes(method, log10(rec)))+
   geom_boxplot()+
   geom_text(aes(label = label, y = 1.5, x = 2.5), size = 3)+
-  labs(y = "log10 recovery",
+  labs(y = expression(log[10]*" recovery"),
        x = "Method")
 
 Umethod_virus <- unspiked_method_data|>
@@ -450,7 +655,7 @@ Umethod_virus <- unspiked_method_data|>
   ggplot(aes(method, log10(rec)))+
   geom_boxplot()+
   facet_wrap(~virus, scales = "free_y")+
-  labs(y = "log10 recovery",
+  labs(y = expression(log[10]*" recovery"),
        x = "Method")
 ```
 
@@ -464,27 +669,43 @@ Uvolume + (Uvolume_virus + theme(axis.text.x = element_text(angle = 90), axis.ti
 
 <br>
 
-Figure 2:
+Figure 2: influence of sample starting volume (a), and concentration method (c) on median log~10~ transformed virus recovery using qPCR. The influence of starting volume and concentration method is separated by virus in panel b and d, respectively. Boxes indicate the 25th and 75th percentiles and whiskers depict +/- 1.5 x IQR. 
 
 <br>
 
 
-### Pellet
-
-<br>
+### Removal of wastewater solid fraction with centrifugation increases viral recovery
 
 ```{r pellet}
 pellet <- spike_ami_pel|>
  filter(method %in% c("PEG", "BE-PEG", "Pellet", "Pellet_BE"))|>
   mutate(BE = str_detect(method, "BE"),
          BE = case_when(BE == TRUE ~ "Beef extract",
-                        BE == FALSE ~ "No beef extract"))
-  
+                        BE == FALSE ~ "No beef extract"),
+         method = str_replace_all(method, c("BE-PEG" = "BE-PEG concentrate",
+                                            "PEG" = "PEG concentrate")))
+
+pellet_unspike <- unspiked_ami_pel|>
+ filter(method %in% c("PEG", "BE-PEG", "Pellet", "Pellet_BE"))|>
+  mutate(BE = str_detect(method, "BE"),
+         BE = case_when(BE == TRUE ~ "Beef extract",
+                        BE == FALSE ~ "No beef extract"),
+         method = str_replace_all(method, c("BE-PEG" = "BE-PEG concentrate",
+                                            "PEG" = "PEG concentrate")))
+
+
 qq_pellet <- pellet|>
   ggplot(aes(sample =log10(rec)))+
   geom_qq()+
   geom_qq_line()+
   facet_wrap(~method, scales = "free")
+
+qq_pellet_unspike <- pellet_unspike|>
+  ggplot(aes(sample =log10(rec)))+
+  geom_qq()+
+  geom_qq_line()+
+  facet_wrap(~method, scales = "free")
+
 
 facets <- pellet|>ungroup()|>count(BE)|>pull(BE)
 t.test.pellet <- tibble(BE = facets, stat = NA_character_, row = 2)
@@ -493,6 +714,14 @@ for (i in 1:length(facets)) {
   t.test.pellet[i,2] <- stat_paste_fun(t.test(log10(rec) ~ method, data = (pellet|>filter(BE == facets[i])) ))
   
 }
+
+t.test.pellet.unspike <- tibble(BE = facets, stat = NA_character_, row = 2)
+for (i in 1:length(facets)) {
+  
+  t.test.pellet.unspike[i,2] <- stat_paste_fun(t.test(log10(rec) ~ method, data = (pellet_unspike|>filter(BE == facets[i])) ))
+  
+}
+
 
 pellet_fig <- pellet|>
   mean_ci_summary(groups = c("method", "BE"), variable = "rec", log10 = TRUE)|>
@@ -507,18 +736,92 @@ pellet_fig <- pellet|>
   geom_boxplot()+
   geom_errorbar(aes(ymin = mean - ci, ymax = mean + ci), width = 0.2)+
   facet_wrap(~BE, scales = "free")+
+  geom_text(aes(label = stat, x = 1.5, y = max + ci * 3), size = 3)+
+  geom_segment(aes(x = 1, xend = 2, y = max + (ci * 1.3), yend = max + (ci * 1.3)))+
+  geom_segment(aes(x = 1, xend = 1, y = max + ci * 1.3, yend = max + (ci * 0.4)))+
+  geom_segment(aes(x = 2, xend = 2, y = max + ci * 1.3, yend = max + (ci * 0.4)))+
+  labs(y = expression(log[10]*" recovery"),
+       x = "Method")
+
+
+pellet_unspike_fig <- pellet_unspike|>
+  mean_ci_summary(groups = c("method", "BE"), variable = "rec", log10 = TRUE)|>
+  mutate(method = str_replace_all(method, c("Pellet_BE" = "Pellet")))|>
+  group_by(BE)|>
+  mutate(row = row_number(),
+         max = max(mean + ci) * (row - (max(row)-1)),
+         max = case_when(max == 0 ~ NA_real_,
+                         TRUE ~ max))|>
+  left_join(t.test.pellet.unspike, by = c("BE", "row"))|>
+  ggplot(aes(method, mean))+
+  geom_boxplot()+
+  geom_errorbar(aes(ymin = mean - ci, ymax = mean + ci), width = 0.2)+
+  facet_wrap(~BE, scales = "free")+
   geom_text(aes(label = stat, x = 1.5, y = max + ci * 1.2), size = 3)+
   geom_segment(aes(x = 1, xend = 2, y = max + (ci * 0.7), yend = max + (ci * 0.7)))+
   geom_segment(aes(x = 1, xend = 1, y = max + ci * 0.7, yend = max + (ci * 0.4)))+
   geom_segment(aes(x = 2, xend = 2, y = max + ci * 0.7, yend = max + (ci * 0.4)))+
-  labs(y = "log10 recovery",
+  labs(y = expression(log[10]*" recovery"),
        x = "Method")
+
+
 ```
 
+The solid fraction of spiked wastewater samples removed as the initial pellet had significantly lower mean log~10~ viral recovery compared to the concentrate while using BE-PEG and PEG concentration methods (Figure 3a; `r paste0("(BE-PEG) ", stat_paste_fun(t.test(log10(rec) ~ method, data = filter(pellet, BE == "Beef extract"))))`; `r paste0("(PEG) ", stat_paste_fun(t.test(log10(rec) ~ method, data = filter(pellet, BE == "No beef extract"))))`). For the unspiked samples the concentrate and pellet were only significantly different when using the BE-PEG concentration method (Figure 3b; `r paste0("(BE-PEG) ", stat_paste_fun(t.test(log10(rec) ~ method, data = filter(pellet_unspike, BE == "Beef extract"))))`); for the PEG method, the concentrate and pellet were not significantly different (`r paste0("(PEG) ", stat_paste_fun(t.test(log10(rec) ~ method, data = filter(pellet_unspike, BE == "No beef extract"))))`). These results suggest removal of the pellet is beneficial for viral recovery when viral load is high, and is unlikely to reduce the recovery when viral load is low.    
+
+<br>
+
 ```{r Figure 3, fig.height = 4.5}
-pellet_fig
+pellet_fig / pellet_unspike_fig + plot_annotation(tag_levels = "a")
+  
 ```
 
 <br>
 
-Figure 3
+Figure 3: comparison of mean log~10~ viral recovery from the concentrate and pellet of spiked (a) and unspiked (b) samples concentrated with BE-PEG and PEG. Line ranges indicate the 95% confidence interval calculated based on a t distribution.
+
+<br>
+
+
+## Supplimentary materials
+
+```{r Figure S1, fig.height= 6, fig.width=6}
+lm <- lm(log10(rec) ~ volume + method + water_type + shape, spike|>na.omit())
+plot_assumptions(lm, lm[["model"]][["log10(rec)"]])
+```
+
+<br>
+
+Figure S1: residual plot of multiple linear regression predicting log~10~ viral recovery (Model 3 in Table 1). Plot of heteroscedasticity of residuals (a), histogram of residuals (b), quantile-quantile plot of residuals (c), observations against fitted values.
+
+<br>
+
+```{r Figure S2, fig.height= 6, fig.width=6}
+(qq_volume + qq_water_type + theme(axis.title.y = element_blank())) / 
+  (qq_method + qq_shape + theme(axis.title.y = element_blank()))+ plot_annotation(tag_levels = "a")
+```
+
+<br>
+
+Figure S2: qq-plot of log~10~ recovery from spiked samples grouped by starting volume and water type (a), water type (b), concentration method (c) and target virus shape (d).
+
+<br>
+
+```{r Figure S3, fig.height= 6, fig.width=6}
+lmU <- lm(log10(rec) ~ volume + method, unspiked|>na.omit())
+plot_assumptions(lmU, lmU[["model"]][["log10(rec)"]])
+```
+
+<br>
+
+Figure S3: residual plot of multiple linear regression predicting log~10~ viral recovery (Model in Table 2). Plot of heteroscedasticity of residuals (a), histogram of residuals (b), quantile-quantile plot of residuals (c), observations against fitted values.
+
+<br>
+
+```{r Figure S4, fig.height= 6, fig.width=6}
+qq_Uvolume / qq_Umethod + plot_annotation(tag_levels = "a")
+```
+
+<br>
+
+Figure S4: qq-plot of log~10~ recovery from unspiked samples grouped by sample starting volume (a) and concentration method (b).
