@@ -224,7 +224,10 @@ anova_volume_lbl <- tibble(label = c(paste_anova_fun(anova(lm(log10(rec) ~ volum
        water_type = c("WW", "DW"),
        row = c(1,1))
 
-cor.test(log10(na.omit(spike)$rec), na.omit(spike)$volume, method = "spearman")
+cor.test(na.omit(filter(spike, water_type == "WW", method != "IP"))$rec, na.omit(filter(spike, water_type == "WW", method != "IP"))$volume, method = "spearman", exact = FALSE)
+cor.test(na.omit(filter(spike, water_type == "DW", method != "IP"))$rec,
+         na.omit(filter(spike, water_type == "DW", method != "IP"))$volume,
+         method = "spearman")
 
 volume <- spike|>
   mean_ci_summary(groups = c("volume", "water_type"), variable = "rec", log10 = TRUE)|>

@@ -686,16 +686,18 @@ pellet <- spike_ami_pel|>
   mutate(BE = str_detect(method, "BE"),
          BE = case_when(BE == TRUE ~ "Beef extract",
                         BE == FALSE ~ "No beef extract"),
-         method = str_replace_all(method, c("BE-PEG" = "BE-PEG concentrate",
-                                            "PEG" = "PEG concentrate")))
+         method = case_when(method == "BE-PEG" ~ "BE-PEG concentrate",
+                            method == "PEG" ~ "PEG concentrate",
+                            TRUE ~ method))
 
 pellet_unspike <- unspiked_ami_pel|>
  filter(method %in% c("PEG", "BE-PEG", "Pellet", "Pellet_BE"))|>
   mutate(BE = str_detect(method, "BE"),
          BE = case_when(BE == TRUE ~ "Beef extract",
                         BE == FALSE ~ "No beef extract"),
-         method = str_replace_all(method, c("BE-PEG" = "BE-PEG concentrate",
-                                            "PEG" = "PEG concentrate")))
+         method = case_when(method == "BE-PEG" ~ "BE-PEG concentrate",
+                            method == "PEG" ~ "PEG concentrate",
+                            TRUE ~ method))
 
 
 qq_pellet <- pellet|>
@@ -829,3 +831,13 @@ qq_Uvolume / qq_Umethod + plot_annotation(tag_levels = "a")
 <br>
 
 Figure S4: qq-plot of log~10~ recovery from unspiked samples grouped by sample starting volume (a) and concentration method (b).
+
+<br>
+
+```{r}
+qq_pellet/ 
+  qq_pellet_unspike  + plot_annotation(tag_levels = "a")
+```
+
+
+Figure S5: qq-plot of log~10~ recovery from spiked (a), and unspiked samples (b), by concentration methods including pellet extraction and quantification.
