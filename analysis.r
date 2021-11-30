@@ -4,7 +4,7 @@ remove(list = ls())
 ################
 library(tidyverse)
 library(patchwork)
-
+library("leaps")
 
 theme_set(theme_grey()+theme(panel.background = element_rect(fill = "grey96")))
 ################
@@ -154,9 +154,60 @@ unspiked_ami_pel <- data|>
 anova(lm(log10(rec) ~ volume + method + size_nm + enveloped + shape + water_type, spike))
 #summary(lm(log10(rec) ~  volume  + enveloped  + method + size_nm + shape + water_type, spike))
 
-summary(lm(log10(rec) ~  volume + method + size_nm + enveloped + water_type + shape, spike))
+summary(lm(log10(rec) ~  volume*method + size_nm*enveloped + water_type*shape +
+             volume:shape + method:size_nm + enveloped:water_type + 
+             method:water_type + volume:water_type, spike))
+
+
 
 ####################
+
+#stepwise regression
+###########################
+sub <- regsubsets(log10(rec) ~ volume*method + volume*size_nm + volume*enveloped + volume*water_type + volume*shape + 
+            method:volume + method:size_nm + method:enveloped + method:water_type + method:shape +
+             size_nm:volume + size_nm:shape + size_nm:method + size_nm:enveloped + size_nm:water_type + 
+              enveloped:volume + enveloped:method + enveloped:size_nm + enveloped:water_type + enveloped:shape +   
+              water_type:volume + water_type:method + water_type:size_nm + water_type:enveloped + water_type:shape +
+              shape:volume + shape:method + shape:size_nm + shape:enveloped + shape:water_type,  data = spike, nvmax = 30,
+          method = "backward")
+
+as_tibble(summary(sub)$which[which.min(summary(sub)$cp),], rownames = "var")|>
+  #filter(value == TRUE)|>
+  filter(value == FALSE)|>
+  view("a")
+
+sub2 <- regsubsets(log10(rec) ~ volume*method + volume*size_nm + volume:enveloped + volume*water_type + shape + 
+                    method:volume + method:enveloped + method:water_type +
+                    size_nm:volume + size_nm:shape + size_nm:method + size_nm:enveloped + size_nm:water_type + 
+                    enveloped:volume + enveloped:method + enveloped:size_nm + enveloped:water_type +   
+                    water_type:volume + water_type:method + water_type:size_nm + water_type:enveloped + water_type:shape +
+                    shape:volume + shape:method + shape:size_nm + shape:enveloped + shape:water_type,  data = spike, nvmax = 30,
+                  method = "backward")
+
+as_tibble(summary(sub2)$which[which.min(summary(sub2)$cp),], rownames = "var")|>
+  #filter(value == TRUE)|>
+  filter(value == FALSE)
+
+sub2 <- regsubsets(log10(rec) ~ volume*method + volume*water_type + shape + 
+                     method:volume + method:water_type +
+                     size_nm:volume + size_nm:shape + size_nm:enveloped + size_nm:water_type + 
+                     enveloped:volume + enveloped:method + enveloped:size_nm +   
+                     water_type:volume + water_type:method + water_type:size_nm +
+                     shape:size_nm,  data = spike, nvmax = 30,
+                   method = "exhaustive")
+
+lm <- lm(log10(rec) ~ volume*method + volume*water_type + shape + 
+           method:volume + method:water_type +
+           size_nm:volume + size_nm:shape + size_nm:enveloped + size_nm:water_type + 
+           enveloped:method + enveloped:size_nm +   
+           water_type:volume + water_type:method + water_type:size_nm +
+           shape:size_nm,  data = spike)
+summary(lm)
+plot_assumptions(lm,
+             lm[["model"]][["log10(rec)"]])
+
+###########################
 
 #volume
 ######################
@@ -172,6 +223,8 @@ anova_volume_lbl <- tibble(label = c(paste_anova_fun(anova(lm(log10(rec) ~ volum
                                      paste_anova_fun(anova(lm(log10(rec) ~ volume, filter(spike, water_type == "DW"))))),
        water_type = c("WW", "DW"),
        row = c(1,1))
+
+cor.test(log10(na.omit(spike)$rec), na.omit(spike)$volume, method = "spearman")
 
 volume <- spike|>
   mean_ci_summary(groups = c("volume", "water_type"), variable = "rec", log10 = TRUE)|>
@@ -213,16 +266,56 @@ volume_virus <- spike|>
 
 spike|>
   mutate(volume = factor(as.character(volume), levels = c("15", "20", "37.5", "50", "150")))|>
-  mean_ci_summary(groups = c("volume", "water_type"), variable = "rec", log10 = TRUE)|> #, "water_type" # , "virus"
+  ungroup()|>
+  group_by(volume, water_type, method)|>
+  mutate(varna = case_when(!is.na(rec) ~ NA_integer_,
+                            is.na(rec) ~ as.integer(1)))|>
+  summarise(mean = mean(log10(rec), na.rm = TRUE),
+            sd = sd(log10(rec), na.rm = TRUE),
+            n = n() - sum(varna, na.rm = TRUE))|>
+  mutate(se = sd / sqrt(n),
+         ci = se * qt(1 - 0.05 / 2, n-1))|>
   ggplot(aes(volume, mean))+
   geom_col()+
   geom_errorbar(aes(ymin = mean - ci, ymax = mean + ci), width = 0.2)+
   #facet_wrap(~virus, scales = "free")+
   #facet_wrap(~water_type, scales = "free")+
-  facet_wrap(~water_type, scales = "free")+
+  facet_wrap(~water_type + method, scales = "free")+
   labs(y = "log10 recovery",
        x = "Volume (ml)")
 
+
+mean_ci_summary <- function(data, groups, variable, log10 = FALSE){
+  
+  data <- data|>ungroup()
+  
+  for (i in 1:length(groups)) {
+    
+    data <- data|>
+      group_by(.data[[ groups[i] ]], .add = TRUE)
+    
+  }
+  
+  if(log10 == TRUE){
+    
+    data|>
+      summarise(mean = mean(log10(.data[[variable]]), na.rm = TRUE),
+                sd = sd(log10(.data[[variable]]), na.rm = TRUE),
+                n = n())|>
+      mutate(se = sd / sqrt(n),
+             ci = se * qt(1 - 0.05 / 2, n-1))
+    
+  }else {
+    
+    data|>
+      summarise(mean = mean(.data[[variable]], na.rm = TRUE),
+                sd = sd(.data[[variable]], na.rm = TRUE),
+                n = n())|>
+      mutate(se = sd / sqrt(n),
+             ci = se * qt(1 - 0.05 / 2, n-1))
+    
+  }
+}
 ###############################
 
 #method
@@ -264,7 +357,7 @@ method <- spike_method_data|>
   facet_wrap(~water_type)+
   labs(y = expression(log[10]*" recovery"),
        x = "Method")
-bquo
+
 ######################
 
 #shape
@@ -515,11 +608,12 @@ qq_envelope <- spike|>
   facet_wrap(~enveloped, scales = "free_y")
 
 
-enveloped <- spike|>
-  mean_ci_summary(groups = c("enveloped"), variable = "rec", log10 = TRUE)|>
-  ggplot(aes(enveloped, mean))+
+enveloped <- spike_method_data|>
+  mean_ci_summary(groups = c("enveloped", "method"), variable = "rec", log10 = TRUE)|>
+  ggplot(aes(method, mean))+
   geom_col()+
-  geom_errorbar(aes(ymin = mean - ci, ymax = mean+ci), width = 0.2)
+  geom_errorbar(aes(ymin = mean - ci, ymax = mean+ci), width = 0.2)+
+  facet_wrap(~enveloped)
 
 ##############################
 
@@ -577,7 +671,7 @@ pellet_fig
 anova(lm(log10(rec) ~ volume  + method, unspiked))
 #summary(lm(log10(rec) ~  volume  + enveloped  + method + size_nm + shape + water_type, unspiked))
 
-summary(lm(log10(rec) ~  volume + method, unspiked))
+summary(lm(log10(rec) ~  volume + method + shape, unspiked))
 ####################
 
 #volume
@@ -661,6 +755,21 @@ Umethod_virus <- unspiked_method_data|>
 
 Umethod / Umethod_virus
 ######################
+
+#shape
+##########################
+unspiked|>
+  #left_join(shape.t.p.v, by = "shape")|>
+  ggplot(aes(enveloped, log10(rec)))+
+  geom_boxplot()+
+  #geom_text(aes(label = p.value, x = 1.5, y = max(mean + ci) + max(ci * 1.6)), size = 3)+
+  #geom_segment(aes(x = 1, xend = 2, y = max(mean + ci) + max(ci) * 0.7, yend = max(mean + ci) + (max(ci) * 0.7)))+
+  #geom_segment(aes(x = 1, xend = 1, y = max(mean + ci) + max(ci) * 0.7, yend = max(mean + ci) + (max(ci) * 0.4)))+
+  #geom_segment(aes(x = 2, xend = 2, y = max(mean + ci) + max(ci) * 0.7, yend = max(mean + ci) + (max(ci) * 0.4)))+
+  labs(y = "log10 recovery",
+       x = "Shape")
+
+##########################
 
 Uvolume / Umethod 
 
