@@ -377,7 +377,6 @@ pairwise.t.test(log(clean_ww_15$rec), clean_ww_15$method)[["p.value"]]|>
 
 
 #pairwise plot fun
-########################
 pairwise_plot_layer <- function(pairwise.test, ymin, ymax, xmin, xmax, x, y, scale, data){
 
 pairwise <- pairwise.test[["p.value"]]|>
@@ -440,7 +439,7 @@ ex.pairwise_label <- pairwise_label|>
 
 return(ex.pairwise_label)
 }
-##############################
+#
 pairwise.test <- pairwise.t.test(log(clean_ww_15$rec), clean_ww_15$method)
 
 ex.pairwise_label <- pairwise_plot_layer(pairwise.test,
