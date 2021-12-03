@@ -549,16 +549,29 @@ lm_meth <- lm(log(rec) ~ method, data = clean_ww_15)
 meth_comp_aov <- tibble(label = paste_anova_fun(anova = anova(lm_meth), log = TRUE),
                        row = 1)
 
+pairwise.meth.ttest <- pairwise.t.test(log(clean_ww_15$rec), clean_ww_15$method)
+
+ex.pairwise_label <- pairwise_plot_layer(pairwise.meth.ttest,
+                                         ymin = 0, ymax = 40, xmin = 0, xmax = 6,
+                                         x = 0.8, y = 35.5, scale = 0.6,
+                                         data = clean_ww_15)
 
 clean_ww_15|>
+  bind_cols(ex.pairwise_label)|>
   mutate(method = fct_reorder(method, rec),
          row = row_number())|>
   left_join(meth_comp_aov, by = "row")|>
   ggplot(aes(method, rec))+
   geom_boxplot(outlier.alpha = 0)+
   geom_beeswarm(alpha = 0.5)+
+  geom_point(x = 2.9, y = 45, size = 95, shape = 15, colour = "white")+
+  geom_point(x = 2.9, y = 45, size = 95, shape = 0)+
+  geom_point(x = 1.25, y = 38, size = 90, shape = 15, colour = "white")+
+  geom_point(x = 1.25, y = 38, size = 90, shape = 0)+
   geom_text(aes(x = 3, y = max(rec) + (0.07 * (max(rec) - min(rec))),
                 label = label), size = 3)+
+  geom_text(aes(x = labelx, y = labely,
+                label = labels), size = 3)+
   labs(x = "Concentration method",
        y = "Recovery (%)") +
   
