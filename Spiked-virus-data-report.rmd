@@ -1,5 +1,5 @@
 ---
-title: "draft-2.0.1"
+title: "draft-2.1.1"
 author: "Cameron Pellett"
 date: "02/12/2021"
 output: html_document
@@ -347,33 +347,32 @@ WWDW_all <- (ww_all + theme(axis.title.x = element_blank())) / dw_all + plot_lay
 Data analysis and statistical tests were carried out in R (R Core Team, 2020); the full script and data are provided in a dedicated repository (<https://github.com/CameronPellett/Spiked-virus-concentration-Bangor>).
 
 
-Sample starting volume (15ml, 30ml, 37.5ml, and 150ml), concentration method (PEG, AS, IP, BE-PEG, and AM), water type (wastewater WW, and deionised water DW), target virus shape and genome type (spherical-RNA, head-tail-DNA, icosahedral-DNA, helical-RNA, and icosahedral-RNA), and virus envelope (TRUE, and FALSE) were selected as factors and co-variates of viral recovery. The selected features were assessed in combination as predictors of viral recovery using a generalised linear model (glm) with the response variable modelled as a Gamma distribution with a logarithmic link function (Eq. 1; see supplementary materials Figure S2 for residuals plots).
+Sample starting volume (15ml, 30ml, 37.5ml, and 150ml), concentration method (PEG, AS, IP, BE-PEG, and AM), and water type (wastewater WW, and deionised water DW) were selected as factors and co-variates of viral recovery. The selected features were assessed in combination as predictors of viral recovery using a generalised linear model (glm) with the response variable modelled as a Gamma distribution with a logarithmic link function (Eq. 1; see supplementary materials Figure S2 for residuals plots).
 
 $$  
-Recovery_{i} = exp[\beta_{0} + \beta_{1} \space Method_{i} + \beta_{2} \space Water \space Type_{i} + \beta_{3} \space Shape:Genome_{i} + \beta_{4} \space Envelope_{i} + \epsilon] \quad \quad (Eq.1) 
+Recovery_{i} = exp[\beta_{0} + \beta_{1} \space Volume_{i} + \beta_{2} \space Method_{i} + \beta_{3} \space Water \space Type_{i} + \epsilon] \quad \quad (Eq.1) 
 $$
 
 
-Following the glm, comparisons of individual features were visualised, and statistical tests were carried out. For statistical tests the recovery percentile was log transformed to meet assumptions of a Gaussian distribution (see supplementary materials Figure S3-S7 for quantile-quantile plots). Equality of variances were tested with F tests. Statistical comparisons of features with two levels and non-equal variance were made with Welch two sample t-tests. Comparisons with three or more levels with equal variance were made with a one-way ANOVA, followed by pairwise two sample t-tests with pooled standard deviations (SD), adjusting p-values with the holm method. Comparisons with three or more levels and non-equal variance were made with a Welch ANOVA (one way comparison of means), followed by pairwise two sample t-tests without pooled SD, adjusting p-values with the holm method. Paired tests were not selected due to missing data created by removal of undetermined results and sample removal during qPCR quality control. Water type was compared with only spiked viruses due to the lack of naturally present virus in deionised water. Starting volume was compared using only wastewater to simulate typical interactions seen in wastewater projects and not using the AM or IP methods due to differing volumes. Method comparison was made using 15ml wastewater sample volumes which were used in all concentration methods, including AM and IP.
+Following the glm, comparisons of individual features were visualised, and statistical tests were carried out. For statistical tests the recovery percentile was log transformed to meet assumptions of a Gaussian distribution (see supplementary materials Figure S3-S6 for quantile-quantile plots). Equality of variances were tested with F tests. Statistical comparisons of features with two levels and non-equal variance were made with Welch two sample t-tests. Comparisons with three or more levels with equal variance were made with a one-way ANOVA, followed by pairwise two sample t-tests with pooled standard deviations (SD), adjusting p-values with the holm method. Comparisons with three or more levels and non-equal variance were made with a Welch ANOVA (one way comparison of means), followed by pairwise two sample t-tests without pooled SD, adjusting p-values with the holm method. Paired tests were not selected due to missing data created by removal of undetermined results and sample removal during qPCR quality control. Water type was compared with only spiked viruses due to the lack of naturally present virus in deionised water. Starting volume was compared using only wastewater to simulate typical interactions seen in wastewater projects and not using the AM or IP methods due to differing volumes. Method comparison was made using 15ml wastewater sample volumes which were used in all concentration methods, including AM and IP.
 
 <br>
 
 ## 3. Results
 
 
-The generalised linear model identified sample starting volume, concentration method, water type, target virus shape, and virus genome type as significant predictors of viral recovery (Table 1). The viral envelope did not have a p-value less than 0.05 after accounting for other viral characteristics and its removal improved the Akaike's information criterion. The model coefficients reveal that sample starting volume is a significant negative correlate of viral recovery; the AM method has the highest mean recovery; and wastewater has reduced recovery over deionised water. Icosahedral RNA viruses had the greatest mean recovery, with the icosahedral shape considerably offset by those with DNA genomes having the lowest recovery.
+The generalised linear model identified sample starting volume, concentration method, and water type as significant predictors of viral recovery (Table 1). The model coefficients reveal that sample starting volume is a significant negative correlate of viral recovery; the AM method has the highest mean recovery; and wastewater has reduced recovery over deionised water.
 
 
 <br>
 
 
 
-Table 1: generalised linear model with Gamma residuals (link = log) predicting recovery of 11 viruses. Pellet methods were excluded from the model due to non-standard starting volumes. The model results include the variable coefficient on a log scale indicating its effect (positive numbers indicating increased recovery), followed by the standard error in brackets, and a significance code (`r notes`) rounded to three decimal places. The Amicon (AM) method, deionised water (DW), and spherical-RNA viruses are included in the baseline intercept. COmpared methods include amonium sulphate (AS), polyethene glycol (PEG), beef extract PEG (BE-PEG), and innova prep (IP). 
+Table 1: generalised linear model with Gamma residuals (link = log) predicting recovery of 11 viruses. Pellet methods were excluded from the model due to non-standard starting volumes. The model results include the variable coefficient on a log scale indicating its effect (positive numbers indicating increased recovery), followed by the standard error in brackets, and a significance code (`r notes`) rounded to three decimal places. The Amicon (AM) method and deionised water (DW) are included in the baseline intercept. Compared methods include amonium sulphate (AS), polyethene glycol (PEG), beef extract PEG (BE-PEG), and innova prep (IP). 
 
 
 ```{r overview multiple linear model}
 glm <- glm(rec ~ volume + method + water_type, data = clean, family = Gamma(link = "log"))
-#glm2 <- glm(rec ~ volume + method + water_type + enveloped, data = clean, family = Gamma(link = "log"))
 
 lm_table <- tidy(glm)|>
   na.omit()|>
@@ -409,7 +408,7 @@ aicr2 <- tibble(
 
 
 lm_table_fin <- lm_table|>
-  #left_join(lm_table2, by = "term")|>
+  #left_join(lm_table, by = "term")|>
   bind_rows(tibble(term = ""))|>
   bind_rows(aicr2)|>
   mutate(across(everything(), ~replace_na(.x, "")))
@@ -697,88 +696,6 @@ Figure 4: The sample solid fraction (Pellet) has significantly lower viral recov
 
 <br>
 
-
-
-### 3.5. Virus shape and genome influence viral recovery
-
-```{r virus characteristics}
-
-virus_char_ww <- clean_ww|>
-  mutate(row = row_number(),
-         shape = paste0(shape, "-", genome))
-
-shapegenome.anova <- tibble(label = paste_anova_fun(anova(lm(log(rec) ~ shape, virus_char_ww )), log = TRUE),
-                      row = 1)
-
-char_pairwise.t.test <- pairwise.t.test(log(virus_char_ww$rec), virus_char_ww$shape, pool.sd = FALSE)[["p.value"]]|>
-  as_tibble(rownames = "varx")|>
-  pivot_longer(2:5, names_to = "vary", values_to = "p.v")
-
-shape <- virus_char_ww|>
-  left_join(shapegenome.anova, by = "row")|>
-  ggplot(aes(shape, rec))+
-  geom_boxplot(outlier.alpha = 0)+
-  geom_beeswarm(alpha = 0.5)+
-  geom_beeswarm(shape = ".", colour = "white")+
-  geom_text(aes(x = 3, y = max(rec) + (0.07 * (max(rec) - min(rec))),
-                label = label), size = 3)+
-  labs(x = "Virus shape-genome",
-       y = "Recovery (%)")
-
-shape_viruses <- clean_ww|>
-  mutate(row = row_number(),
-         #shape = paste0(shape, "-", genome),
-         shape = fct_reorder(shape, rec),
-         pntshape1 = case_when(virus %in% c("crAss", "AdV", "PMMoV") ~ 32,
-                   TRUE ~ 16),
-         pntshape2 = case_when(virus %in% c("crAss", "AdV", "PMMoV") ~ 16,
-                   TRUE ~ 32),
-         alpha1 = case_when(virus %in% c("crAss", "AdV", "PMMoV") ~ 0,
-                   TRUE ~ 1),
-         alpha2 = case_when(virus %in% c("crAss", "AdV", "PMMoV") ~ 1,
-                   TRUE ~ 0),
-         virus = str_replace_all(virus, "SARS-CoV-2", "SARS")
-         )|>
-  ggplot(aes(virus, rec))+
-  geom_boxplot(outlier.alpha = 0)+
-  geom_beeswarm(aes(shape = pntshape1), alpha = 0.5, cex = 2.5, size = 1)+
-  geom_beeswarm(aes(alpha = alpha1), shape = ".", cex = 2.5, colour = "white")+
-  geom_beeswarm(aes(shape = pntshape2), alpha = 0.5, cex = 3.5, size = 1)+
-  geom_beeswarm(aes(alpha = alpha2), shape = ".", cex = 3.5, colour = "white")+
-  scale_shape_identity()+
-  facet_grid(~shape + genome, scales = "free_x", space = "free_x")+
-  labs(x = "Virus",
-       y = "Recovery (%)")+
-  theme(legend.position = "none")
-
-pairwise_char <- char_pairwise.t.test|>
-  rowwise()|>
-  mutate(p.v = pvalue_star(p.v))|>
-  ggplot(aes(varx, vary))+
-  geom_tile(fill = "grey97", colour = "white")+
-  geom_text(aes(label = p.v))+
-  xlab("Method")+
-  theme(axis.title.y = element_blank(),
-        axis.text.x = element_text(angle = 90),
-        legend.position = "none")+
-  plot_spacer() +
-  plot_layout(heights = c(1.3,0.2), nrow = 2)
-
-
-fig5 <- (shape) / ((shape_viruses + pairwise_char) + plot_layout(widths = c(1.7,0.3))) + plot_layout(heights = c(1.3, 0.7), nrow = 2) + plot_annotation(tag_levels = "a")
-```
-
-Viral recovery is influenced by the virus shape and genome type (Figure 5); Helical-RNA viruses had the highest median recovery (`r virus_char_ww|>filter(shape == "helical-RNA")|>pull(rec)|>median()`%), closely followed by icosahedral-RNA viruses (`r virus_char_ww|>filter(shape == "icosahedral-RNA")|>pull(rec)|>median()`%), then spherical-RNA (`r virus_char_ww|>filter(shape == "spherical-RNA")|>pull(rec)|>median()`%), head-tail-DNA (`r virus_char_ww|>filter(shape == "Head-tail-DNA")|>pull(rec)|>median()`%), and icosahedral-DNA (`r virus_char_ww|>filter(shape == "icosahedral-DNA")|>pull(rec)|>median()`%). Performing a one-way ANOVA found the mean log transformed recovery to be significantly different between virus shape and genome type (`r paste_anova_fun(anova(lm(log(rec) ~ shape, virus_char_ww )), log = TRUE)`). This result was further supported by pairwise t-tests which found all groups to be significantly different, except helical-RNA viruses compared with other RNA viruses (Figure 5c; p-value holm adjustment method). When separated by virus, the uneven number of DNA and helical viruses is made apparent, which could increase the likelihood of bias in comparisons (Figure 5b). However, icosahedral-RNA viruses and spherical-RNA viruses (both with four individual viruses) were still found to be significantly different, suggesting, with confidence, that there is an effect of virus shape on recovery.
-
-<br>
-
-```{r fig5}
-fig5
-```
-
-Figure 5: Virus shape and genome influence viral recovery. Panel 'a' compares virus recovery of different shapes and genome types, panel 'b' separates the comparison of virus shape and genome by individual viruses, and panel 'c' shows p-values of pairwise comparisons of recovery using t-tests with pooled standard deviations (`r notes`). A one-way ANOVA was carried out after log transformation of recovery.
-
-<br>
 
 ## 5. Supplementary materials
 
