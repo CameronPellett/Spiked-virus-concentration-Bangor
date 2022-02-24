@@ -1,5 +1,5 @@
 ---
-title: "draft-2"
+title: "draft-2.0.1"
 author: "Cameron Pellett"
 date: "02/12/2021"
 output: html_document
@@ -251,7 +251,10 @@ clean <- data|>
          method = factor(method),
          genome = factor(genome),
          samples_spiked = str_replace_all(samples_spiked, c("yes" = "S",
-                                                            "no" = "U")))|>
+                                                            "no" = "U")),
+         method = str_replace_all(method, "Amicon", "AM"),
+         virus = str_replace_all(virus, c("N1" = "SARS-CoV-2",
+                                          "CrAss" = "crAss")))|>
   na.omit()
 
 
@@ -273,7 +276,9 @@ pellet <- data|>
          water_type = factor(water_type),
          enveloped = factor(enveloped),
          size_nm = as.double(size_nm),
-         method = factor(method))|>
+         method = factor(method),
+         virus = str_replace_all(virus, c("N1" = "SARS",
+                                          "CrAss" = "crAss")))|>
   na.omit()|>
   mutate(BE = case_when(str_detect(method, "BE") ~ "Beef extract",
                         TRUE ~ "No beef extract"))
@@ -289,13 +294,14 @@ notes <- (tibble(estimate.x = "p-value: < 0.001 [***]; < 0.01 [**]; < 0.05 [*]; 
 ww_all <- clean|>
   filter(water_type == "WW")|>
   mutate(volume = fct_reorder(.f = factor(paste0(volume, "ml WW")), .x = volume, .fun = median),
-         shape1 = case_when(method == "Amicon" & volume == "20ml" ~ as.integer(32),
-                            virus %in% c("AdV", "PMMoV", "CrAss") ~ as.integer(32),
+         shape1 = case_when(method == "AM" & volume == "20ml" ~ as.integer(32),
+                            virus %in% c("AdV", "PMMoV", "crAss") ~ as.integer(32),
                             TRUE ~ as.integer(16)),
-         shape2 = case_when(method == "Amicon" & volume == "20ml" ~ as.integer(16),
+         shape2 = case_when(method == "AM" & volume == "20ml" ~ as.integer(16),
                             TRUE ~ as.integer(32)),
-         shape3 = case_when(virus %in% c("AdV", "PMMoV", "CrAss") & volume != "20ml" ~ as.integer(16),
-                            TRUE ~ as.integer(32)))|>
+         shape3 = case_when(virus %in% c("AdV", "PMMoV", "crAss") & volume != "20ml" ~ as.integer(16),
+                            TRUE ~ as.integer(32)),
+         virus = str_replace_all(virus, "SARS-CoV-2", "SARS"))|>
   ggplot(aes(y = rec, x =method))+
   geom_beeswarm(aes(shape = shape1), priority = "ascending", cex = 4, show.legend = F)+
   geom_beeswarm(aes(shape = shape2), priority = "ascending", cex = 12, show.legend = F)+
@@ -311,13 +317,14 @@ ww_all <- clean|>
 dw_all <- clean|>
   filter(water_type == "DW")|>
   mutate(volume = fct_reorder(.f = factor(paste0(volume, "ml DW")), .x = volume, .fun = median),
-         shape1 = case_when(method == "Amicon" & volume == "20ml" ~ as.integer(32),
-                            virus %in% c("AdV", "PMMoV", "CrAss") ~ as.integer(32),
+         shape1 = case_when(method == "AM" & volume == "20ml" ~ as.integer(32),
+                            virus %in% c("AdV", "PMMoV", "crAss") ~ as.integer(32),
                             TRUE ~ as.integer(16)),
-         shape2 = case_when(method == "Amicon" & volume == "20ml" ~ as.integer(16),
+         shape2 = case_when(method == "AM" & volume == "20ml" ~ as.integer(16),
                             TRUE ~ as.integer(32)),
-         shape3 = case_when(virus %in% c("AdV", "PMMoV", "CrAss") & volume != "20ml" ~ as.integer(16),
-                            TRUE ~ as.integer(32)))|>
+         shape3 = case_when(virus %in% c("AdV", "PMMoV", "crAss") & volume != "20ml" ~ as.integer(16),
+                            TRUE ~ as.integer(32)),
+         virus = str_replace_all(virus, "SARS-CoV-2", "SARS"))|>
   ggplot(aes(y = rec, x =method))+
   geom_beeswarm(aes(shape = shape1), priority = "ascending", cex = 4, show.legend = F)+
   geom_beeswarm(aes(shape = shape2), priority = "ascending", cex = 12, show.legend = F)+
@@ -339,25 +346,25 @@ WWDW_all <- (ww_all + theme(axis.title.x = element_blank())) / dw_all + plot_lay
 
 Data analysis and statistical tests were carried out in R (R Core Team, 2020); the full script and data are provided in a dedicated repository (<https://github.com/CameronPellett/Spiked-virus-concentration-Bangor>).
 
-Sample starting volume (15ml, 30ml, 37.5ml, and 150ml), concentration method (PEG, AS, IP, BE-PEG, and Amicon), water type (wastewater WW, and deionised water DW), target virus shape and genome type (spherical-RNA, head-tail-DNA, icosahedral-DNA, helical-RNA, and icosahedral-RNA), and virus envelope (TRUE, and FALSE) were selected as factors and co-variates of viral recovery. The selected features were assessed in combination as predictors of viral recovery using a generalised linear model (glm) with the response variable modelled as a Gamma distribution with a logarithmic link function (Eq. 1; see supplementary materials Figure S2 for residuals plots).
+Sample starting volume (15ml, 30ml, 37.5ml, and 150ml), concentration method (PEG, AS, IP, BE-PEG, and AM), water type (wastewater WW, and deionised water DW), target virus shape and genome type (spherical-RNA, head-tail-DNA, icosahedral-DNA, helical-RNA, and icosahedral-RNA), and virus envelope (TRUE, and FALSE) were selected as factors and co-variates of viral recovery. The selected features were assessed in combination as predictors of viral recovery using a generalised linear model (glm) with the response variable modelled as a Gamma distribution with a logarithmic link function (Eq. 1; see supplementary materials Figure S2 for residuals plots).
 
 $$  
 Recovery_{i} = exp[\beta_{0} + \beta_{1} \space Method_{i} + \beta_{2} \space Water \space Type_{i} + \beta_{3} \space Shape:Genome_{i} + \beta_{4} \space Envelope_{i} + \epsilon] \quad \quad (Eq.1) 
 $$
 
-Following the glm, comparisons of individual features were visualised, and statistical tests were carried out. For statistical tests the recovery percentile was log transformed to meet assumptions of a Gaussian distribution (see supplementary materials Figure S3-S7 for quantile-quantile plots). Equality of variances were tested with F tests. Statistical comparisons of features with two levels and non-equal variance were made with Welch two sample t-tests. Comparisons with three or more levels with equal variance were made with a one-way ANOVA, followed by pairwise two sample t-tests with pooled standard deviations (SD), adjusting p-values with the holm method. Comparisons with three or more levels and non-equal variance were made with a Welch ANOVA (one way comparison of means), followed by pairwise two sample t-tests without pooled SD, adjusting p-values with the holm method. Paired tests were not selected due to missing data created by removal of undetermined results and sample removal during qPCR quality control. Water type was compared with only spiked viruses due to the lack of naturally present virus in deionised water. Starting volume was compared using only wastewater to simulate typical interactions seen in wastewater projects and not using the Amicon or IP methods due to differing volumes. Method comparison was made using 15ml wastewater sample volumes which were used in all concentration methods, including Amicon and IP.
+Following the glm, comparisons of individual features were visualised, and statistical tests were carried out. For statistical tests the recovery percentile was log transformed to meet assumptions of a Gaussian distribution (see supplementary materials Figure S3-S7 for quantile-quantile plots). Equality of variances were tested with F tests. Statistical comparisons of features with two levels and non-equal variance were made with Welch two sample t-tests. Comparisons with three or more levels with equal variance were made with a one-way ANOVA, followed by pairwise two sample t-tests with pooled standard deviations (SD), adjusting p-values with the holm method. Comparisons with three or more levels and non-equal variance were made with a Welch ANOVA (one way comparison of means), followed by pairwise two sample t-tests without pooled SD, adjusting p-values with the holm method. Paired tests were not selected due to missing data created by removal of undetermined results and sample removal during qPCR quality control. Water type was compared with only spiked viruses due to the lack of naturally present virus in deionised water. Starting volume was compared using only wastewater to simulate typical interactions seen in wastewater projects and not using the AM or IP methods due to differing volumes. Method comparison was made using 15ml wastewater sample volumes which were used in all concentration methods, including AM and IP.
 
 <br>
 
 ## 3. Results
 
-The generalised linear model identified sample starting volume, concentration method, water type, target virus shape, and virus genome type as significant predictors of viral recovery (Table 1). The viral envelope did not have a p-value less than 0.05 after accounting for other viral characteristics and its removal improved the Akaike's information criterion. The model coefficients reveal that sample starting volume is a significant negative correlate of viral recovery; the Amicon method has the highest mean recovery; and wastewater has reduced recovery over deionised water. Icosahedral RNA viruses had the greatest mean recovery, with the icosahedral shape considerably offset by those with DNA genomes having the lowest recovery.
+The generalised linear model identified sample starting volume, concentration method, water type, target virus shape, and virus genome type as significant predictors of viral recovery (Table 1). The viral envelope did not have a p-value less than 0.05 after accounting for other viral characteristics and its removal improved the Akaike's information criterion. The model coefficients reveal that sample starting volume is a significant negative correlate of viral recovery; the AM method has the highest mean recovery; and wastewater has reduced recovery over deionised water. Icosahedral RNA viruses had the greatest mean recovery, with the icosahedral shape considerably offset by those with DNA genomes having the lowest recovery.
 
 
 <br>
 
 
-Table 1: generalised linear model with Gamma residuals (link = log) predicting recovery of 11 viruses. Pellet methods were excluded from the model due to non-standard starting volumes. The model results include the variable coefficient on a log scale indicating its effect (positive numbers indicating increased recovery), followed by the standard error in brackets, and a significance code (`r notes`) rounded to three decimal places. The Amicon method, deionised water (DW), and spherical-RNA viruses are included in the baseline intercept.
+Table 1: generalised linear model with Gamma residuals (link = log) predicting recovery of 11 viruses. Pellet methods were excluded from the model due to non-standard starting volumes. The model results include the variable coefficient on a log scale indicating its effect (positive numbers indicating increased recovery), followed by the standard error in brackets, and a significance code (`r notes`) rounded to three decimal places. The Amicon (AM) method, deionised water (DW), and spherical-RNA viruses are included in the baseline intercept. COmpared methods include amonium sulphate (AS), polyethene glycol (PEG), beef extract PEG (BE-PEG), and innova prep (IP). 
 
 
 ```{r overview multiple linear model}
@@ -502,7 +509,7 @@ clean_ww <- clean|>
   filter(water_type == "WW")
 
 vol_ww <- clean_ww|>
-  filter(!method %in% c("Amicon", "IP"))
+  filter(!method %in% c("AM", "IP"))
 
 glm_ww <- glm(rec ~ volume, data = vol_ww, family = Gamma(link = "log"))
 lm_ww <- lm(log(rec) ~ as.factor(volume), data = vol_ww)
@@ -583,10 +590,10 @@ clean_ww_15 <- clean_ww|>
 
 lm_meth <- lm(log(rec) ~ method, data = clean_ww_15)
 
-f <- var.test(log(rec) ~ method, data = filter(clean_ww_15, method %in% c("BE-PEG", "Amicon")))
-f2 <- var.test(log(rec) ~ method, data = filter(clean_ww_15, method %in% c("AS", "Amicon")))
-f3 <- var.test(log(rec) ~ method, data = filter(clean_ww_15, method %in% c("IP", "Amicon")))
-f4 <- var.test(log(rec) ~ method, data = filter(clean_ww_15, method %in% c("PEG", "Amicon")))
+f <- var.test(log(rec) ~ method, data = filter(clean_ww_15, method %in% c("BE-PEG", "AM")))
+f2 <- var.test(log(rec) ~ method, data = filter(clean_ww_15, method %in% c("AS", "AM")))
+f3 <- var.test(log(rec) ~ method, data = filter(clean_ww_15, method %in% c("IP", "AM")))
+f4 <- var.test(log(rec) ~ method, data = filter(clean_ww_15, method %in% c("PEG", "AM")))
 
 
 meth_comp_aov <- tibble(label = stat_paste_fun(oneway.test(log(rec) ~ method, data = clean_ww_15), log = TRUE)[1],
@@ -610,8 +617,7 @@ fig3a <- clean_ww_15|>
        y = "Recovery (%)") 
   
 fig3b <- clean_ww_15|>
-  mutate(method = fct_reorder(str_replace_all(method, c("Amicon" = "Ami",
-                                                        "BE-PEG" = "BE-P")), rec))|>
+  mutate(method = fct_reorder(str_replace_all(method, c("BE-PEG" = "BE-P")), rec))|>
   ggplot(aes(method, rec))+
   geom_boxplot(outlier.alpha = 0)+
   geom_beeswarm(alpha = 0.3, cex = 3, size = 1)+
@@ -623,10 +629,8 @@ fig3b <- clean_ww_15|>
 fig3c <- meth_pairwise.t.test|>
   rowwise()|>
   mutate(p.v = pvalue_star(p.v),
-         varx = str_replace_all(varx, c("Amicon" = "Ami",
-                                          "BE-PEG" = "BE-P")),
-         vary = str_replace_all(vary, c("Amicon" = "Ami",
-                                          "BE-PEG" = "BE-P")))|>
+         varx = str_replace_all(varx, c("BE-PEG" = "BE-P")),
+         vary = str_replace_all(vary, c("BE-PEG" = "BE-P")))|>
   ggplot(aes(varx, vary))+
   geom_tile(fill = "grey97", colour = "white")+
   geom_text(aes(label = p.v))+
@@ -638,7 +642,7 @@ fig3 <- fig3a / (fig3b + (fig3c/ plot_spacer()) + plot_layout(widths = c(1.35, 0
 
 ```
 
-Different concentration methods did have an effect of viral recovery (Figure 3); Amicon and BE-PEG methods had the highest median recovery (`r clean_ww_15|>filter(method == "Amicon")|>pull(rec)|>median()`% and `r clean_ww_15|>filter(method == "BE-PEG")|>pull(rec)|>median()`%, respectively), followed by IP (`r clean_ww_15|>filter(method == "IP")|>pull(rec)|>median()`%), then AS (`r clean_ww_15|>filter(method == "AS")|>pull(rec)|>median()`%) and PEG (`r clean_ww_15|>filter(method == "PEG")|>pull(rec)|>median()`%). The variance of the Amicon method was significantly different to all other methods (p-value < 0.05), so a Welch ANOVA was selected (one-way analysis of means not assuming equal variances) which found significant differences between the method's mean log transformed recovery (`r stat_paste_fun(oneway.test(log(rec) ~ method, data = clean_ww_15), log = TRUE)[1]`). Post-hoc pairwise comparisons with t-tests found that the Amicon method's viral recovery was not significantly different to the IP method due to Amicon's greater variance, whereas BE-PEG was significantly different to all other methods except Amicon (Figure 3c; p-value holm adjustment method). Amicon's performance compared to other methods varied highly between viruses, performing well for Flu, MNV and PMMoV, whilst poorly for AdV and CrAss (Figure 3b). BE-PEG, on the other hand, was consistently better than other methods (excluding Amicon) for individual virus recovery. These results suggest the BE-PEG method would have the greatest and most consistent recovery of virus.
+Different concentration methods did have an effect of viral recovery (Figure 3); AM and BE-PEG methods had the highest median recovery (`r clean_ww_15|>filter(method == "AM")|>pull(rec)|>median()`% and `r clean_ww_15|>filter(method == "BE-PEG")|>pull(rec)|>median()`%, respectively), followed by IP (`r clean_ww_15|>filter(method == "IP")|>pull(rec)|>median()`%), then AS (`r clean_ww_15|>filter(method == "AS")|>pull(rec)|>median()`%) and PEG (`r clean_ww_15|>filter(method == "PEG")|>pull(rec)|>median()`%). The variance of the AM method was significantly different to all other methods (p-value < 0.05), so a Welch ANOVA was selected (one-way analysis of means not assuming equal variances) which found significant differences between the method's mean log transformed recovery (`r stat_paste_fun(oneway.test(log(rec) ~ method, data = clean_ww_15), log = TRUE)[1]`). Post-hoc pairwise comparisons with t-tests found that the AM method's viral recovery was not significantly different to the IP method due to AM's greater variance, whereas BE-PEG was significantly different to all other methods except AM (Figure 3c; p-value holm adjustment method). AM's performance compared to other methods varied highly between viruses, performing well for Flu, MNV and PMMoV, whilst poorly for AdV and crAss (Figure 3b). BE-PEG, on the other hand, was consistently better than other methods (excluding AM) for individual virus recovery. These results suggest the BE-PEG method would have the greatest and most consistent recovery of virus.
 
 
 <br>
@@ -649,7 +653,7 @@ fig3
 ```
 
 
-Figure 3: Concentration methods influence virus recovery at a starting volume of 15ml. Panel 'a' combines all recovery results with starting volumes of 15ml, panel 'b' separates recovery by virus with a variable y scale, and panel 'c' shows p-values of pairwise comparisons of method recovery using t-tests without pooled standard deviations (`r notes`; p-value holm adjustment method). Comparisons were made with an ANOVA after log transformation of recovery, followed by pairwise t tests (c); BE-PEG and Amicon methods had the highest median recovery, but due to Amicon's greater variance, pairwise comparisons with IP (third highest median recovery) were only significantly different for BE-PEG (p-value < 0.05; c).
+Figure 3: Concentration methods influence virus recovery at a starting volume of 15ml. Panel 'a' combines all recovery results with starting volumes of 15ml, panel 'b' separates recovery by virus with a variable y scale, and panel 'c' shows p-values of pairwise comparisons of method recovery using t-tests without pooled standard deviations (`r notes`; p-value holm adjustment method). Comparisons were made with an ANOVA after log transformation of recovery, followed by pairwise t tests (c); BE-PEG and AM methods had the highest median recovery, but due to AM's greater variance, pairwise comparisons with IP (third highest median recovery) were only significantly different for BE-PEG (p-value < 0.05; c).
 
 
 <br>
@@ -749,14 +753,15 @@ shape_viruses <- clean_ww|>
   mutate(row = row_number(),
          #shape = paste0(shape, "-", genome),
          shape = fct_reorder(shape, rec),
-         pntshape1 = case_when(virus %in% c("CrAss", "AdV", "PMMoV") ~ 32,
+         pntshape1 = case_when(virus %in% c("crAss", "AdV", "PMMoV") ~ 32,
                    TRUE ~ 16),
-         pntshape2 = case_when(virus %in% c("CrAss", "AdV", "PMMoV") ~ 16,
+         pntshape2 = case_when(virus %in% c("crAss", "AdV", "PMMoV") ~ 16,
                    TRUE ~ 32),
-         alpha1 = case_when(virus %in% c("CrAss", "AdV", "PMMoV") ~ 0,
+         alpha1 = case_when(virus %in% c("crAss", "AdV", "PMMoV") ~ 0,
                    TRUE ~ 1),
-         alpha2 = case_when(virus %in% c("CrAss", "AdV", "PMMoV") ~ 1,
-                   TRUE ~ 0)
+         alpha2 = case_when(virus %in% c("crAss", "AdV", "PMMoV") ~ 1,
+                   TRUE ~ 0),
+         virus = str_replace_all(virus, "SARS-CoV-2", "SARS")
          )|>
   ggplot(aes(virus, rec))+
   geom_boxplot(outlier.alpha = 0)+
@@ -801,7 +806,7 @@ Figure 5: Virus shape and genome influence viral recovery. Panel 'a' compares vi
 
 ## 5. Supplementary materials
 
-```{r plot S1 dwww_all}
+```{r plot S1 dwww_all, fig.height = 13, fig.width=9}
 WWDW_all
 ```
 
