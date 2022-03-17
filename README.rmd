@@ -1,24 +1,23 @@
-Comparative assessment of filtration- and precipitation-based methods
-for the concentration of SARS-CoV-2 and other viruses from wastewater
-================
-Cameron Pellett
-17/03/2022
+---
+title: "Comparative assessment of filtration- and precipitation-based methods for the concentration of SARS-CoV-2 and other viruses from wastewater"
+author: "Cameron Pellett"
+date: "17/03/2022"
+output: github_document
+---
 
-This document and github repo provides the r code for results (3.1)
-produced in *Comparative assessment of filtration- and
-precipitation-based methods for the concentration of SARS-CoV-2 and
-other viruses from wastewater*. The full report with code is included
-below. The source code for this document can be found in README.rmd. For
-a cleaner report with a html output, Spiked-virus-data-report.rmd can be
-used. qPCR recovery data can be found in Spiking_data.csv, virus
-characteristics can be found in virus_characteristics.csv, and some
-additional untidy notes and exploration can be found in analysis.r.
-Results in section 3.2. can be found in another repo:
-<https://github.com/CameronPellett/Chem-Con-Bangor-Bath>.
 
-<br> <br>
 
-``` r
+This document and github repo provides the r code for results (3.1) produced in 
+*Comparative assessment of filtration- and precipitation-based methods for the concentration of SARS-CoV-2 and other viruses from wastewater*. The full report with code is included below. The source code for this document can be found in README.rmd. For a cleaner report with a html output, Spiked-virus-data-report.rmd can be used. qPCR recovery data can be found in Spiking_data.csv, virus characteristics can be found in virus_characteristics.csv, and some additional untidy notes and exploration can be found in analysis.r. Results in section 3.2. can be found in another repo: https://github.com/CameronPellett/Chem-Con-Bangor-Bath. 
+
+<br>
+<br>
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, fig.height = 9, fig.width = 9)
+```
+
+```{r packages}
 #packages
 library(tidyverse)
 library(patchwork)
@@ -28,7 +27,7 @@ library(ggbeeswarm)
 theme_set(theme_grey()+theme(panel.background = element_rect(fill = "grey96")))
 ```
 
-``` r
+```{r functions}
 #functions
 
 
@@ -237,9 +236,10 @@ plot_assumptions <- function(model, obs, bins = 30){
         plot <- a+b+c+d+plot_layout(ncol = 2, nrow = 2)+plot_annotation(tag_levels = "a")
         return(plot)
 } 
+
 ```
 
-``` r
+```{r data import and clean}
 #data import and clean
 
 data <- read_csv("Spiking_data.csv")
@@ -301,13 +301,15 @@ pellet <- data|>
   na.omit()|>
   mutate(BE = case_when(str_detect(method, "BE") ~ "Beef extract",
                         TRUE ~ "No beef extract"))
+
 ```
 
-``` r
+```{r notes}
+
 notes <- (tibble(estimate.x = "p-value: < 0.001 [***]; < 0.01 [**]; < 0.05 [*]; > 0.05 [.]"))
 ```
 
-``` r
+```{r full dataset plot, fig.height = 13, fig.width=9}
 #supplimentary figure full dataset plot
 
 ww_all <- clean|>
@@ -363,71 +365,39 @@ WWDW_all <- (ww_all + theme(axis.title.x = element_blank())) / dw_all + plot_lay
 
 ### 2.1 Statistical methodology
 
-Data analysis and statistical tests were carried out in R (R Core Team,
-2020); the full script and data are provided in a dedicated repository
-(<https://github.com/CameronPellett/Spiked-virus-concentration-Bangor>).
+Data analysis and statistical tests were carried out in R (R Core Team, 2020); the full script and data are provided in a dedicated repository (<https://github.com/CameronPellett/Spiked-virus-concentration-Bangor>).
 
-Sample starting volume (15ml, 30ml, 37.5ml, and 150ml), concentration
-method (PEG, AS, IP, BE-PEG, and AM), and water type (wastewater WW, and
-deionised water DW) were selected as factors and co-variates of viral
-recovery. The selected features were assessed in combination as
-predictors of viral recovery using a generalised linear model (glm) with
-the response variable modelled as a Gamma distribution with a
-logarithmic link function (Eq. 1; see supplementary materials Figure S2
-for residuals plots).
+
+Sample starting volume (15ml, 30ml, 37.5ml, and 150ml), concentration method (PEG, AS, IP, BE-PEG, and AM), and water type (wastewater WW, and deionised water DW) were selected as factors and co-variates of viral recovery. The selected features were assessed in combination as predictors of viral recovery using a generalised linear model (glm) with the response variable modelled as a Gamma distribution with a logarithmic link function (Eq. 1; see supplementary materials Figure S2 for residuals plots).
 
 $$  
-Recovery\_{i} = exp\[\\beta\_{0} + \\beta\_{1} \\space Volume\_{i} + \\beta\_{2} \\space Method\_{i} + \\beta\_{3} \\space Water \\space Type\_{i} + \\epsilon\] \\quad \\quad (Eq.1) 
+Recovery_{i} = exp[\beta_{0} + \beta_{1} \space Volume_{i} + \beta_{2} \space Method_{i} + \beta_{3} \space Water \space Type_{i} + \epsilon] \quad \quad (Eq.1) 
 $$
 
-Following the glm, comparisons of individual features were visualised,
-and statistical tests were carried out. For statistical tests the
-recovery percentile was log transformed to meet assumptions of a
-Gaussian distribution (see supplementary materials Figure S3-S6 for
-quantile-quantile plots). Equality of variances were tested with F
-tests. Statistical comparisons of features with two levels and non-equal
-variance were made with Welch two sample t-tests. Comparisons with three
-or more levels with equal variance were made with a one-way ANOVA,
-followed by pairwise two sample t-tests with pooled standard deviations
-(SD), adjusting p-values with the holm method. Comparisons with three or
-more levels and non-equal variance were made with a Welch ANOVA (one way
-comparison of means), followed by pairwise two sample t-tests without
-pooled SD, adjusting p-values with the holm method. Paired tests were
-not selected due to missing data created by removal of undetermined
-results and sample removal during qPCR quality control. Water type was
-compared with only spiked viruses due to the lack of naturally present
-virus in deionised water. Starting volume was compared using only
-wastewater to simulate typical interactions seen in wastewater projects
-and not using the AM or IP methods due to differing volumes. Method
-comparison was made using 15ml wastewater sample volumes which were used
-in all concentration methods, including AM and IP.
+
+Following the glm, comparisons of individual features were visualised, and statistical tests were carried out. For statistical tests the recovery percentile was log transformed to meet assumptions of a Gaussian distribution (see supplementary materials Figure S3-S6 for quantile-quantile plots). Equality of variances were tested with F tests. Statistical comparisons of features with two levels and non-equal variance were made with Welch two sample t-tests. Comparisons with three or more levels with equal variance were made with a one-way ANOVA, followed by pairwise two sample t-tests with pooled standard deviations (SD), adjusting p-values with the holm method. Comparisons with three or more levels and non-equal variance were made with a Welch ANOVA (one way comparison of means), followed by pairwise two sample t-tests without pooled SD, adjusting p-values with the holm method. Paired tests were not selected due to missing data created by removal of undetermined results and sample removal during qPCR quality control. Water type was compared with only spiked viruses due to the lack of naturally present virus in deionised water. Starting volume was compared using only wastewater to simulate typical interactions seen in wastewater projects and not using the AM or IP methods due to differing volumes. Method comparison was made using 15ml wastewater sample volumes which were used in all concentration methods, including AM and IP.
 
 <br>
 
 ## 3. Results
 
-The generalised linear model identified sample starting volume,
-concentration method, and water type as significant predictors of viral
-recovery (Table 1). The model coefficients reveal that sample starting
-volume is a significant negative correlate of viral recovery; the AM
-method has the highest mean recovery; and wastewater has reduced
-recovery over deionised water.
+
+The generalised linear model identified sample starting volume, concentration method, and water type as significant predictors of viral recovery (Table 1). The model coefficients reveal that sample starting volume is a significant negative correlate of viral recovery; the AM method has the highest mean recovery; and wastewater has reduced recovery over deionised water.
+
 
 <br>
 
-Table 1: generalised linear model with Gamma residuals (link = log)
-predicting recovery of 11 viruses. Pellet methods were excluded from the
-model due to non-standard starting volumes. The model results include
-the variable coefficient on a log scale indicating its effect (positive
-numbers indicating increased recovery), followed by the standard error
-in brackets, and a significance code ( `` `r notes` `` p-value: \< 0.001
-\[\*\*\*\]; \< 0.01 \[\*\*\]; \< 0.05 \[\*\]; \> 0.05 \[.\] ) rounded to
-three decimal places. The Amicon (AM) method and deionised water (DW)
-are included in the baseline intercept. Compared methods include amonium
-sulphate (AS), polyethene glycol (PEG), beef extract PEG (BE-PEG), and
-innova prep (IP).
 
-``` r
+
+Table 1: generalised linear model with Gamma residuals (link = log) predicting recovery of 11 viruses. Pellet methods were excluded from the model due to non-standard starting volumes. The model results include the variable coefficient on a log scale indicating its effect (positive numbers indicating increased recovery), followed by the standard error in brackets, and a significance code 
+( `` `r
+notes` ``
+`r notes`
+)
+rounded to three decimal places. The Amicon (AM) method and deionised water (DW) are included in the baseline intercept. Compared methods include amonium sulphate (AS), polyethene glycol (PEG), beef extract PEG (BE-PEG), and innova prep (IP). 
+
+
+```{r overview multiple linear model}
 #overview glm
 
 glm <- glm(rec ~ volume + method + water_type, data = clean, family = Gamma(link = "log"))
@@ -472,27 +442,16 @@ lm_table_fin <- lm_table|>
   mutate(across(everything(), ~replace_na(.x, "")))
 
 knitr::kable(lm_table_fin, col.names = c("Variables", "Model estimates"))
+
 ```
 
-| Variables      | Model estimates       |
-|:---------------|:----------------------|
-| Intercept      | 3.759 (0.078) \*\*\*  |
-| Volume         | -0.007 (0.001) \*\*\* |
-| Method: AS     | -1.245 (0.092) \*\*\* |
-| Method: BE-PEG | -0.368 (0.092) \*\*\* |
-| Method: IP     | -1.55 (0.101) \*\*\*  |
-| Method: PEG    | -1.569 (0.094) \*\*\* |
-| Water type: WW | -0.848 (0.057) \*\*\* |
-|                |                       |
-| AIC            | 4748.24               |
-| R-squared      | 0.597                 |
-| Adj. R-squared | 0.594                 |
 
 <br>
 
+
 ### 3.1. Greater recovery of spiked virus in deionised water compared to watewater
 
-``` r
+```{r water type comp}
 #water type comp
 
 wt_comp <- clean|>
@@ -527,40 +486,44 @@ Figure1 <- (wt_comp|>
   
   plot_layout(widths = c(1.3, 0.7), nrow = 2, ncol = 1) +
     plot_annotation(tag_levels = "a")
+  
 ```
 
-Deionised water (DW) had greater median recovery of spiked virus
-(`` `r median(wt_comp|>filter(water_type == "DW")|>pull(rec))` `` 7.64%
-) compared to wastewater
-(`` `r median(wt_comp|>filter(water_type == "WW")|>pull(rec))` `` 5.23%
-), which was found to be significant when comparing mean log transformed
-viral recovery (Figure 1a;
-`` `r stat_paste_fun(t.test(log(rec) ~ water_type, data = wt_comp), log = TRUE)` ``
-Welch Two Sample t-test (log y): t = 5.5, df = 578, p-value \< 0.001 ).
-Greater recovery from deionised water was seen in all viruses except
-Phi6 and RoV (Figure 1b). These results suggest wastewater contains
-other chemicals or materials which reduce efficiency of concentration,
-extraction, and qPCR.
+Deionised water (DW) had greater median recovery of spiked virus 
+(`` `r
+median(wt_comp|>filter(water_type == "DW")|>pull(rec))` ``
+`r median(wt_comp|>filter(water_type == "DW")|>pull(rec))`%
+)
+compared to wastewater
+(`` `r
+median(wt_comp|>filter(water_type == "WW")|>pull(rec))` ``
+`r median(wt_comp|>filter(water_type == "WW")|>pull(rec))`%
+),
+which was found to be significant when comparing mean log transformed viral recovery 
+(Figure 1a; `` `r
+stat_paste_fun(t.test(log(rec) ~ water_type, data = wt_comp), log = TRUE)` ``
+`r stat_paste_fun(t.test(log(rec) ~ water_type, data = wt_comp), log = TRUE)`
+).
+Greater recovery from deionised water was seen in all viruses except Phi6 and RoV (Figure 1b). These results suggest wastewater contains other chemicals or materials which reduce efficiency of concentration, extraction, and qPCR. 
+
 
 <br>
 
-``` r
+
+```{r fig1}
 Figure1
 ```
 
-![](README_files/figure-gfm/fig1-1.png)<!-- -->
 
-Figure 1: Greater recovery of spiked virus in deionised water (DW)
-compared to wastewater (WW). Panel ‘a’ combines all spiked virus
-recovery results and panel ‘b’ separates recovery by individual virus.
-Comparisons were made with a Welch Two Sample t-test after log
-transformation of recovery.
+Figure 1: Greater recovery of spiked virus in deionised water (DW) compared to wastewater (WW). Panel 'a' combines all spiked virus recovery results and panel 'b' separates recovery by individual virus. Comparisons were made with a Welch Two Sample t-test after log transformation of recovery.
+
 
 <br>
 
+
 ### 3.2. Viral recovery improved with a reduced starting volume of wastewater
 
-``` r
+```{r volume}
 #volume assess
 
 clean_ww <- clean|>
@@ -619,50 +582,59 @@ fig2c <- pairwise.vol.ttest|>
 
 fig2 <- fig2a/ ((fig2b + (fig2c/plot_spacer()/plot_spacer())) +
   plot_layout(widths =  c(1.35, 0.25))) + plot_layout( heights = c(1.3, 0.7)) + plot_annotation(tag_levels = "a")
+
 ```
 
-The lowest starting volume (15ml) had the greatest median viral recovery
-( `` `r vol_ww|>filter(volume == 15)|>pull(rec)|>median()` `` 4.85% )
-followed by 37.5ml (
-`` `r vol_ww|>filter(volume == 37.5)|>pull(rec)|>median()` `` 3.84% ),
-then the largest volume ( 150ml;
-`` `r vol_ww|>filter(volume == 150)|>pull(rec)|>median()` `` 1.75%;
-Figure 2a ). The mean log transformed viral recovery was significantly
-different between groups (
-`` `r paste_anova_fun(anova = anova(lm_ww), log = TRUE)` `` ANOVA (log
-y): F value = 36.25, p-value \< 0.001 ), as well as all pairwise
-comparisons (Figure 2c; Pairwise t-tests with pooled SD; p-value \<
-0.05; holm adjustment method). The negative trend between volume and
-recovery was seen in the recovery of all individual viruses; Although,
-MNV and RoV did have higher median recovery for 37.5ml samples compared
-to 15ml (Figure 2b). These results support conclusions in 3.1, that
-wastewater contains inhibitors of viral recovery, which are increased
-with a greater volume.
+The lowest starting volume (15ml) had the greatest median viral recovery 
+(
+`` `r
+vol_ww|>filter(volume == 15)|>pull(rec)|>median()` ``
+`r vol_ww|>filter(volume == 15)|>pull(rec)|>median()`%
+)
+followed by 37.5ml 
+(
+`` `r
+vol_ww|>filter(volume == 37.5)|>pull(rec)|>median()` ``
+`r vol_ww|>filter(volume == 37.5)|>pull(rec)|>median()`%
+),
+then the largest volume 
+(
+150ml; `` `r
+vol_ww|>filter(volume == 150)|>pull(rec)|>median()` ``
+`r vol_ww|>filter(volume == 150)|>pull(rec)|>median()`%; Figure 2a
+).
+The mean log transformed viral recovery was significantly different between groups 
+(
+`` `r
+paste_anova_fun(anova = anova(lm_ww), log = TRUE)` ``
+`r paste_anova_fun(anova = anova(lm_ww), log = TRUE)`
+),
+as well as all pairwise comparisons (Figure 2c; Pairwise t-tests with pooled SD; p-value < 0.05; holm adjustment method). The negative trend between volume and recovery was seen in the recovery of all individual viruses; Although, MNV and RoV did have higher median recovery for 37.5ml samples compared to 15ml (Figure 2b). These results support conclusions in 3.1, that wastewater contains inhibitors of viral recovery, which are increased with a greater volume.
+
 
 <br>
 
-``` r
+
+```{r fig2}
 fig2
 ```
 
-![](README_files/figure-gfm/fig2-1.png)<!-- -->
 
-Figure 2: Viral recovery improved with a reduced starting volume of
-wastewater. Panel ‘a’ combines all recovery results, panel ‘b’ separates
-recovery by virus with a variable y scale, and panel ‘c’ shows p-values
-(holm adjustment method) of pairwise comparisons with two sample t-tests
-with pooled standard deviations ( `` `r notes` `` p-value: \< 0.001
-\[\*\*\*\]; \< 0.01 \[\*\*\]; \< 0.05 \[\*\]; \> 0.05 \[.\] ).
-Comparisons were made with an ANOVA after log transformation of
-recovery, followed by pairwise t tests; Pairwise comparisons found
-significant differences between all volumes with the holm adjustment
-method (p-value \< 0.05).
+Figure 2: Viral recovery improved with a reduced starting volume of wastewater. Panel 'a' combines all recovery results, panel 'b' separates recovery by virus with a variable y scale, and panel 'c' shows p-values (holm adjustment method) of pairwise comparisons with two sample t-tests with pooled standard deviations 
+(
+`` `r
+notes` ``
+`r notes`
+).
+Comparisons were made with an ANOVA after log transformation of recovery, followed by pairwise t tests; Pairwise comparisons found significant differences between all volumes with the holm adjustment method (p-value < 0.05).
+
 
 <br>
 
+
 ### 3.3. BE-PEG and Amicon concentration methods have the greatest viral recovery
 
-``` r
+```{r, method}
 #method comp
 
 clean_ww_15 <- clean_ww|>
@@ -718,63 +690,69 @@ fig3c <- meth_pairwise.t.test|>
   theme(axis.title.y = element_blank())
 
 fig3 <- fig3a / (fig3b + (fig3c/ plot_spacer()) + plot_layout(widths = c(1.35, 0.25))) + plot_layout(heights = c(1.3, 0.7), nrow = 2, ncol = 1) + plot_annotation(tag_levels = "a")
+  
+
 ```
 
-Different concentration methods did have an effect of viral recovery
-(Figure 3); AM and BE-PEG methods had the highest median recovery (
-`` `r clean_ww_15|>filter(method == "AM")|>pull(rec)|>median()` ``
-12.18% and
-`` `r clean_ww_15|>filter(method == "BE-PEG")|>pull(rec)|>median()` ``
-10.885%, respectively ), followed by IP (
-`` `r clean_ww_15|>filter(method == "IP")|>pull(rec)|>median()` `` 5.1%
-), then AS (
-`` `r clean_ww_15|>filter(method == "AS")|>pull(rec)|>median()` `` 5.04%
-) and PEG (
-`` `r clean_ww_15|>filter(method == "PEG")|>pull(rec)|>median()` ``
-2.29% ). The variance of the AM method was significantly different to
-all other methods (p-value \< 0.05), so a Welch ANOVA was selected
-(one-way analysis of means not assuming equal variances) which found
-significant differences between the method’s mean log transformed
-recovery (
-`` `r stat_paste_fun(oneway.test(log(rec) ~ method, data = clean_ww_15), log = TRUE)[1]` ``
-One-way analysis of means (not assuming equal variances) (log y): F =
-13.7, df = 4, p-value \< 0.001 ). Post-hoc pairwise comparisons with
-t-tests found that the AM method’s viral recovery was not significantly
-different to the IP method due to AM’s greater variance, whereas BE-PEG
-was significantly different to all other methods except AM (Figure 3c).
-AM’s performance compared to other methods varied highly between
-viruses, performing well for Flu, MNV and PMMoV, whilst poorly for AdV
-and crAss (Figure 3b). BE-PEG, on the other hand, was consistently
-better than other methods (excluding AM) for individual virus recovery.
-These results suggest the BE-PEG method would have the greatest and most
-consistent recovery of virus.
+Different concentration methods did have an effect of viral recovery (Figure 3); AM and BE-PEG methods had the highest median recovery 
+(
+`` `r
+clean_ww_15|>filter(method == "AM")|>pull(rec)|>median()` ``
+`r clean_ww_15|>filter(method == "AM")|>pull(rec)|>median()`% and 
+`` `r
+clean_ww_15|>filter(method == "BE-PEG")|>pull(rec)|>median()` ``
+`r clean_ww_15|>filter(method == "BE-PEG")|>pull(rec)|>median()`%, respectively
+),
+followed by IP 
+(
+`` `r
+clean_ww_15|>filter(method == "IP")|>pull(rec)|>median()` ``
+`r clean_ww_15|>filter(method == "IP")|>pull(rec)|>median()`%
+),
+then AS 
+(
+`` `r
+clean_ww_15|>filter(method == "AS")|>pull(rec)|>median()` ``
+`r clean_ww_15|>filter(method == "AS")|>pull(rec)|>median()`%
+)
+and PEG 
+(
+`` `r
+clean_ww_15|>filter(method == "PEG")|>pull(rec)|>median()` ``
+`r clean_ww_15|>filter(method == "PEG")|>pull(rec)|>median()`%
+).
+The variance of the AM method was significantly different to all other methods (p-value < 0.05), so a Welch ANOVA was selected (one-way analysis of means not assuming equal variances) which found significant differences between the method's mean log transformed recovery 
+(
+`` `r
+stat_paste_fun(oneway.test(log(rec) ~ method, data = clean_ww_15), log = TRUE)[1]` ``
+`r stat_paste_fun(oneway.test(log(rec) ~ method, data = clean_ww_15), log = TRUE)[1]`
+).
+Post-hoc pairwise comparisons with t-tests found that the AM method's viral recovery was not significantly different to the IP method due to AM's greater variance, whereas BE-PEG was significantly different to all other methods except AM (Figure 3c). AM's performance compared to other methods varied highly between viruses, performing well for Flu, MNV and PMMoV, whilst poorly for AdV and crAss (Figure 3b). BE-PEG, on the other hand, was consistently better than other methods (excluding AM) for individual virus recovery. These results suggest the BE-PEG method would have the greatest and most consistent recovery of virus.
+
 
 <br>
 
-``` r
+
+```{r fig3}
 fig3
 ```
 
-![](README_files/figure-gfm/fig3-1.png)<!-- -->
 
-Figure 3: Concentration methods influence virus recovery at a starting
-volume of 15ml. Panel ‘a’ combines all recovery results with starting
-volumes of 15ml, panel ‘b’ separates recovery by virus with a variable y
-scale, and panel ‘c’ shows p-values of pairwise comparisons of method
-recovery using t-tests without pooled standard deviations (
-`` `r notes` `` p-value: \< 0.001 \[\*\*\*\]; \< 0.01 \[\*\*\]; \< 0.05
-\[\*\]; \> 0.05 \[.\]; p-value holm adjustment method ). Comparisons
-were made with an ANOVA after log transformation of recovery, followed
-by pairwise t tests (c); BE-PEG and AM methods had the highest median
-recovery, but due to AM’s greater variance, pairwise comparisons with IP
-(third highest median recovery) were only significantly different for
-BE-PEG (p-value \< 0.05; c).
+Figure 3: Concentration methods influence virus recovery at a starting volume of 15ml. Panel 'a' combines all recovery results with starting volumes of 15ml, panel 'b' separates recovery by virus with a variable y scale, and panel 'c' shows p-values of pairwise comparisons of method recovery using t-tests without pooled standard deviations 
+(
+`` `r
+notes` ``
+`r notes`; p-value holm adjustment method
+).
+Comparisons were made with an ANOVA after log transformation of recovery, followed by pairwise t tests (c); BE-PEG and AM methods had the highest median recovery, but due to AM's greater variance, pairwise comparisons with IP (third highest median recovery) were only significantly different for BE-PEG (p-value < 0.05; c).
+
 
 <br>
 
+
 ### 3.4. Removal of the sample solid fraction via centrifugation is likely to increase viral recovery
 
-``` r
+```{r pellet}
 #pellet assess
 
 facets <- pellet|>ungroup()|>count(BE)|>pull(BE)
@@ -817,67 +795,56 @@ fig4 <- pellet|>
   theme(axis.text.x = element_text(angle = 90)) +
   
   plot_layout(nrow = 2, heights = c(1.3,0.7)) + plot_annotation(tag_level = "a")
+
+
 ```
 
-The solid fraction of wastewater samples removed as the initial pellet
-after spiking had significantly lower mean log transformed viral
-recovery compared to the concentrate while using BE-PEG and PEG
-concentration methods ( Figure 4a; (BE-PEG)
-`` `r t.test.pellet[[1,2]]` `` Welch Two Sample t-test (log y): t =
-16.9, df = 147, p-value \< 0.001; (PEG) `` `r t.test.pellet[[2,2]]` ``
-Welch Two Sample t-test (log y): t = 7, df = 55, p-value \< 0.001 ). The
-pellet had consistently lower recovery of all individual viruses (Figure
-4b). These results suggest a greater proportion of virus is suspended in
-the liquid of a sample compared to the solid fraction. It is, thus,
-likely that removal of the pellet will improve overall virus recovery.
+The solid fraction of wastewater samples removed as the initial pellet after spiking had significantly lower mean log transformed viral recovery compared to the concentrate while using BE-PEG and PEG concentration methods 
+(
+Figure 4a; (BE-PEG) `` `r
+t.test.pellet[[1,2]]` ``
+`r t.test.pellet[[1,2]]`;
+(PEG) `` `r
+t.test.pellet[[2,2]]` ``
+`r t.test.pellet[[2,2]]`
+).
+The pellet had consistently lower recovery of all individual viruses (Figure 4b). These results suggest a greater proportion of virus is suspended in the liquid of a sample compared to the solid fraction. It is, thus, likely that removal of the pellet will improve overall virus recovery.
+
 
 <br>
 
-``` r
+
+```{r fig4}
 fig4
 ```
 
-![](README_files/figure-gfm/fig4-1.png)<!-- -->
 
-Figure 4: The sample solid fraction (Pellet) has significantly lower
-viral recovery than the concentrated sample; thus, removal via
-centrifugation will likely increase the median viral recovery of a
-concentrated sample. Panel ‘a’ combines all recovery results with
-starting volumes of 50ml and panel ‘b’ separates recovery by virus with
-a variable y scale. Comparisons were made with a Welch Two Sample t-test
-after log transformation of recovery.
+Figure 4: The sample solid fraction (Pellet) has significantly lower viral recovery than the concentrated sample; thus, removal via centrifugation will likely increase the median viral recovery of a concentrated sample. Panel 'a' combines all recovery results with starting volumes of 50ml and panel 'b' separates recovery by virus with a variable y scale. Comparisons were made with a Welch Two Sample t-test after log transformation of recovery.
+
 
 <br>
+
 
 ## 5. Supplementary materials
 
-``` r
+```{r plot S1 dwww_all, fig.height = 13, fig.width=9}
 WWDW_all
 ```
 
-![](README_files/figure-gfm/plot%20S1%20dwww_all-1.png)<!-- -->
-
-Figure S1: recovery percentage for all 11 spiked (S) and unspiked (U)
-viruses grouped by wastewater (WW), deionised water (DW), sample volume
-(ml), and concentration method. Points have been offset on the
-horizontal axis to avoid over plotting.
+Figure S1: recovery percentage for all 11 spiked (S) and unspiked (U) viruses grouped by wastewater (WW), deionised water (DW), sample volume (ml), and concentration method. Points have been offset on the horizontal axis to avoid over plotting.
 
 <br>
 
-``` r
+```{r S2 glm residual plots, fig.height = 6, fig.width = 6}
 plot_assumptions(glm, glm[["y"]])
+
 ```
 
-![](README_files/figure-gfm/S2%20glm%20residual%20plots-1.png)<!-- -->
-
-Figure S2: Residual plot of the generalised linear model fitted as a
-Gamma distribution with a logarithmic link function. Residual plots of
-(a) homoscedasticity, (b) histogram normality, (c) quantile-quantile
-normality, and (d) true observations against fitted values.
+Figure S2: Residual plot of the generalised linear model fitted as a Gamma distribution with a logarithmic link function. Residual plots of (a) homoscedasticity, (b) histogram normality, (c) quantile-quantile normality, and (d) true observations against fitted values.
 
 <br>
 
-``` r
+```{r S3 , fig.height = 4, fig.width = 6}
 wt_comp|>
   ggplot(aes(sample = log(rec)))+
   geom_qq()+
@@ -887,14 +854,11 @@ wt_comp|>
        x = "theoretical")
 ```
 
-![](README_files/figure-gfm/S3%20-1.png)<!-- -->
-
-Figure S3: quantile-quantile plot of log transformed virus recovery
-grouped by water type (De-ionised water DW and wastewater WW).
+Figure S3: quantile-quantile plot of log transformed virus recovery grouped by water type (De-ionised water DW and wastewater WW).
 
 <br>
 
-``` r
+```{r S4, fig.height = 4, fig.width = 6}
 vol_ww|>
   mutate(volume = fct_reorder(paste0(volume, "ml"), volume))|>
   ggplot(aes(sample = log(rec)))+
@@ -905,14 +869,11 @@ vol_ww|>
        x = "theoretical")
 ```
 
-![](README_files/figure-gfm/S4-1.png)<!-- -->
-
-Figure S4: quantile-quantile plot of log transformed virus recovery
-grouped starting volume of wastewater.
+Figure S4: quantile-quantile plot of log transformed virus recovery grouped starting volume of wastewater.
 
 <br>
 
-``` r
+```{r s5, fig.height = 6, fig.width = 6}
 clean_ww_15|>
   ggplot(aes(sample = log(rec)))+
   geom_qq()+
@@ -922,14 +883,11 @@ clean_ww_15|>
        x = "theoretical")
 ```
 
-![](README_files/figure-gfm/s5-1.png)<!-- -->
-
-Figure S5: quantile-quantile plot of log transformed virus recovery
-grouped by concentration method.
+Figure S5: quantile-quantile plot of log transformed virus recovery grouped by concentration method.
 
 <br>
 
-``` r
+```{r s6, fig.height = 6, fig.width = 6}
 pellet|>
   ggplot(aes(sample = log(rec)))+
   geom_qq()+
@@ -939,7 +897,4 @@ pellet|>
        x = "theoretical")
 ```
 
-![](README_files/figure-gfm/s6-1.png)<!-- -->
-
-Figure S6: quantile-quantile plot of log transformed virus recovery
-grouped by pellet and concentrated sample.
+Figure S6: quantile-quantile plot of log transformed virus recovery grouped by pellet and concentrated sample.
